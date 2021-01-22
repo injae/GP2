@@ -20,7 +20,6 @@ find_cppkg(OpenSSL git  MODULE OpenSSL::SSL OpenSSL::Crypto COMPONENTS SSL Crypt
 find_cppkg(fmt 7.1.3  MODULE fmt::fmt TYPE lib)
 find_cppkg(nlohmann_json 3.9.1  MODULE nlohmann_json::nlohmann_json TYPE lib)
 find_cppkg(range-v3 0.11.0  MODULE range-v3::range-v3 TYPE lib)
-find_cppkg(serdepp git  MODULE serdepp::serdepp TYPE lib)
 find_cppkg(zmqpp git  MODULE zmqpp::zmq TYPE lib)
 
 
@@ -49,7 +48,7 @@ SOURCES
 )
 
 
-set(second_global_deps PUBLIC OpenSSL fmt nlohmann_json range-v3 serdepp zmqpp)
+set(second_global_deps PUBLIC OpenSSL fmt nlohmann_json range-v3 zmqpp)
 cppm_target_dependencies(hm_crypt
    ${second_global_deps})
 
