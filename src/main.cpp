@@ -19,7 +19,7 @@ struct EIG {
 
     // return yi
     void init () {
-        auto xi = eig::random_r(pk.q);
+        auto xi = eig::random_r(pk.q); // 2 < r < q-2
         sk = eig::secret_key(pk, xi);
         pk.yi = pk.g.exp(xi, pk.p);
     }
@@ -31,23 +31,24 @@ int main(int argc, char* argv[]) {
     EIG::pk = eig::public_key(1024);
     std::vector<EIG> Un;
     int user = 3; 
-    std::vector<std::string> Mn{"AA", "BB", "CC"};
+    std::vector<std::string> Mn{"AA", "BB", "CC"}; //plain text
 
     fmt::print("step1\n");
     auto& [p, q, g, Y, yi] = EIG::pk;
 
+    // user add and calculate Y
     Y = Bn::one();
-    Bn TY = Bn::one();
     for(int i =0; i < user; ++i) {
         EIG Ui;
         Ui.init();
         Y = Y.mul(Ui.pk.yi, p); // spread and calculate Y
         Un.push_back(Ui);
     }
-
     for(auto& it : Un) { it.pk.y = Y; }
+
     for(auto [i, Ui] : Un | views::enumerate) { Un[0].Cn.push_back(Ui.pk.encrypt(Mn[i])); }
 
+    // step 2 3 4 code
     auto step234 = [&Un](int i) -> std::set<eig::cipher> {
         std::set<eig::cipher> _Cn; // ~Cn
         for (auto& [ui, vi] : Un[i].Cn) {
@@ -61,11 +62,11 @@ int main(int argc, char* argv[]) {
     };
 
     fmt::print("step2\n");
-    Un[1].Cn = step234(0) | to_vector; // 
+    Un[1].Cn = step234(0) | to_vector; 
     
     
     fmt::print("step3\n");
-    Un[2].Cn = step234(1) | to_vector; //
+    Un[2].Cn = step234(1) | to_vector;
    
     fmt::print("step4\n");
     {
@@ -74,6 +75,7 @@ int main(int argc, char* argv[]) {
     Un[1].Cn = Un[2].Cn; // 
     }
 
+    // step 5 6 7 code
     auto step567 = [&Un](int i) {
         std::vector<std::pair<Bn, Bn>> dn;
         auto& p = Un[i].pk.p;
@@ -94,7 +96,6 @@ int main(int argc, char* argv[]) {
 
     fmt::print("step7\n");
     Un[2].dn = step567(2);
-
 
     // decrypt 
     fmt::print("Mn:{}\n",Mn);
