@@ -1,0 +1,5 @@
+[zmqpp]
+    version="git"
+    git="https://github.com/injae/zmqpp.git"
+    description="zmqpp static library forked from zmqpp"
+    module="zmqpp::zmq"

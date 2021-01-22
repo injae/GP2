@@ -1,0 +1,39 @@
+[package]
+   name = "second"
+   version = "0.0.1"
+   description = ""
+
+[cmake]
+    include = ["cmake/OpenSSLEnv.cmake"]
+
+[lib]
+   name = "hm_crypt"
+   source = ["src/hm_crypt/.*"]
+
+[[bin]]
+   name = "eig"
+   source = ["src/main.cpp"]
+    
+[[bin]]
+   name = "server"
+   source = ["src/simnet_server.cpp"]
+
+[[bin]]
+   name = "client"
+   source = ["src/simnet_client.cpp"]
+
+[profile.dev.compiler]
+    clang = "-Wdeprecated-declarations"
+[profile.release.compiler]
+    clang = "-Wdeprecated-declarations"
+
+#[workspace]
+#    member=["libs/asio"]
+
+[dependencies]
+    fmt="7.1.3"
+    OpenSSL="git"
+    zmqpp="git"
+    range-v3="0.11.0"
+    nlohmann_json="3.9.1"
+    serdepp="git"

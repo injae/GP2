@@ -1,0 +1,6 @@
+[OpenSSL]
+    version="git"
+    module="OpenSSL::SSL OpenSSL::Crypto"
+    components="SSL Crypto"
+    description=""
+    custom=true

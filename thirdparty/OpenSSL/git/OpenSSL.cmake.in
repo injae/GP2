@@ -1,0 +1,19 @@
+# Cppkg Base Dependency Downloader
+cmake_minimum_required(VERSION 3.6)
+project(OpenSSL-git-install)
+
+set(CPPM_VERSION 0.0.12)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cppm_loader.cmake)
+include(${CPPM_CORE}/cppkg/search_cppkg.cmake)
+search_cppkg(brew bin)
+if(brew_found)
+    search_cppkg(openssl bin)
+    if(openssl_found)
+        cppkg_print("already installed openssl")
+    else()
+        execute_process(COMMAND brew install openssl)
+    endif()
+else()
+    cppm_error_print("can't find brew")
+endif()
+
