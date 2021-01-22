@@ -77,7 +77,7 @@ int main(int argc, char* argv[]) {
 
     // step 5 6 7 code
     auto step567 = [&Un](int i) {
-        std::vector<std::pair<Bn, Bn>> dn;
+        std::vector<std::pair<Bn, Bn>> dn; // zi, wi
         auto& p = Un[i].pk.p;
         auto _x = Un[i].sk.x.negate();
         for(auto& [ui, vi] : Un[i].Cn) {
@@ -97,12 +97,14 @@ int main(int argc, char* argv[]) {
     fmt::print("step7\n");
     Un[2].dn = step567(2);
 
-    // decrypt 
+    // print dataset
     fmt::print("Mn:{}\n",Mn);
     fmt::print("pk: p:{}, q:{}, g:{}\n", p, q, g);
-    assert(q == p.sub(Bn::one()).rshift_one());
     fmt::print("Bn(Mn):{}\n", Mn | views::transform([](auto it){ return Bn(it).to_dec(); }));
+
+    // decrypt 
     for(auto [i, Ui]: Un | views::enumerate) {
+        // v * PI(zi)                                                                                 zi
         Bn mi = accumulate(Un, Ui.Cn[i].v, [i=i, p=p](auto it, auto ui) { return it.mul(ui.dn[i].first, p); });
         fmt::print("{}\n",mi.to_dec());
     }
