@@ -13,7 +13,8 @@
 #include <asio/streambuf.hpp>
 #include <asio/connect.hpp>
 #include <fmt/format.h>
-
+#include <future>
+#include <simnet/none_block_queue.hpp>
 
 using asio::ip::tcp;
 namespace simnet {
@@ -32,39 +33,64 @@ namespace simnet {
         friend server;
         friend client;
     public:
+        using ptr = std::shared_ptr<session>;
         session(tcp::socket socket) : socket_(std::move(socket)) {}
         void send(const std::string& data) {
             auto self(shared_from_this());
             auto body = make_packet(data);
-            asio::async_write(socket_, asio::buffer(body), [this, self](std::error_code ec, std::size_t length) {
+            asio::async_write(socket_, asio::buffer(body), [self](std::error_code ec, std::size_t length) {
                 if(ec) { fmt::print(stderr, "Error:{}\n", ec.message()); return; }
             });
         }
 
-        void receive() {
+        void keep_receive() {
             auto self(shared_from_this());
             asio::async_read_until(socket_, buffer_, "\r\n", [this](auto ec, auto length) {
                 //if(ec) { fmt::print(stderr, "Error:{}\n", ec.message()); return; }
                 if(ec) return; 
-                std::string data = make_string(buffer_, length); 
-                fmt::print("data:{}\n",data);
+                queue_.push(make_string(buffer_, length));
                 receive();
             });
         }
-    private:
+        template<typename Func>
+        void keep_receive(Func&& func) {
+            auto self(shared_from_this());
+            asio::async_read_until(socket_, buffer_, "\r\n", [this, func](auto ec, auto length) {
+                if(ec == asio::error::operation_aborted) { fmt::print("abort receiving\n"); return;}
+                if(ec) { fmt::print(stderr, "Error:{}\n", ec.message()); exit(1); }
+                func(make_string(buffer_, length));
+                keep_receive(func);
+            });
+        }
+
+        std::future<std::string> receive() {
+            auto self(shared_from_this());
+            return std::async([this](){
+                auto length = asio::read_until(socket_, buffer_, "\r\n");
+                return make_string(buffer_, length);
+            });
+        }
+
+        simnet::queue<std::string>& queue() { return queue_; }
+
+        tcp::socket& socket() { return socket_; }
         asio::streambuf buffer_;
+    private:
         tcp::socket socket_;
+        std::promise<std::string> promise_;
+        simnet::queue<std::string> queue_;
     };
 
     class server {
     public:
         server(asio::io_context& io_context, short port)
-            : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)), socket_(io_context) {}
+            : acceptor_(io_context, tcp::endpoint(asio::ip::address_v4::any(), port)), socket_(io_context) {}
         void accept() {
+            //            acceptor_.set_option(asio::socket_base::reuse_address(true));
             acceptor_.async_accept(socket_, [this](auto ec) {
                 if(ec) return;
-                fmt::print("accpet client {}:", socket_.remote_endpoint().address().to_string());
-                fmt::print("{}\n", socket_.local_endpoint().address().to_string());
+                fmt::print("accpet client {}:", socket_.remote_endpoint().port());
+                fmt::print("{}\n", socket_.local_endpoint().port());
                 sessions_.push_back(std::make_shared<session>(std::move(socket_)));
                 sessions_.back()->receive();
                 accept();
@@ -85,7 +111,8 @@ namespace simnet {
         }
         void connect(const std::string& ip, const std::string& port) {
             asio::connect(session_->socket_, resolver_.resolve(ip, port));
-            fmt::print("client {}\n",session_->socket_.remote_endpoint().address().to_string());
+            fmt::print("client {}:",session_->socket_.remote_endpoint().port());
+            fmt::print("{}\n",session_->socket_.local_endpoint().port());
         }
         std::shared_ptr<session>& api() { return session_; }
     private:

@@ -10,6 +10,8 @@
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
+#include <serdepp/utility.hpp>
+
 namespace ssl {
     class Bn
     {
@@ -85,6 +87,7 @@ namespace ssl {
         static std::string bn_to_hex(const Bn& bn);    
         std::string to_dec(void) const;
         std::string to_hex(void) const;
+        std::string to_string();
         void to_bytes(uint8_t* bytes, int* len) const;
         std::vector<uint8_t> to_bytes();
 
@@ -105,5 +108,15 @@ template <> struct nlohmann::adl_serializer<ssl::Bn> {
     static void to_json(json& j, const ssl::Bn& value) {j = value.to_hex();}
     static void from_json(const json &j, ssl::Bn &value) {value.from_hex(j.get<std::string>().c_str());}
 };
+
+namespace serde {
+    using namespace ssl;
+    template<> struct serializer<Bn> : serializer_convertor<Bn, std::string> { 
+        using FROM = Bn;
+        using TO   = std::string;
+        static void from(FROM& from_, TO& to_) { from_.from_hex(to_.c_str()); }
+        static void to(TO& to_, FROM& from_)   { to_ = from_.to_hex(); }
+    }; 
+}
 
 #endif 

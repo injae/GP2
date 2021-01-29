@@ -172,6 +172,11 @@ namespace ssl {
         *len = BN_bn2bin(this->ptr_, bytes);
     }
 
+    std::string Bn::to_string() {
+        auto bytes = to_bytes();
+        return std::string{bytes.begin(), bytes.end()};
+    }
+
     std::vector<uint8_t> Bn::to_bytes() {
         std::vector<uint8_t> result;
         uint8_t buffer[1000] = {0};

@@ -7,10 +7,11 @@
 #include <deque>
 #include <string>
 #include <mutex>
+#include <future>
 
 namespace simnet {
     class atomic_mutex {
-        std::atomic_flag flag{ATOMIC_FLAG_INIT};
+        std::atomic_flag flag{false};
     public:
         void lock() { while(flag.test_and_set()) {} }
         void unlock() { flag.clear(); }
@@ -34,6 +35,10 @@ namespace simnet {
         bool empty() {
             std::lock_guard<atomic_mutex> lock{mtx};
             return queue_.empty();
+        }
+
+        std::future<T> wait_get() {
+            return std::async([this](){ while(queue_.empty()) { } return pop(); });
         }
 
     private:

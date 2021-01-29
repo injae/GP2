@@ -3,8 +3,10 @@
 #include <thread>
 
 int main(int argc, char* argv[]) {
+    if(argc < 2) { fmt::print("require port number\n"); return -1; }
     asio::io_context io_context;
-    simnet::server server(io_context, 12345);
+    //tcp::v4();
+    simnet::server server(io_context, std::atoi(argv[1]));
     server.accept();
     auto thread = std::thread([&](){ io_context.run(); });
 

@@ -82,8 +82,7 @@ int main(int argc, char* argv[]) {
         // auto _x = Un[i].sk.x.negate();
         for(auto& [ui, vi] : Un[i].Cn) {
             // auto zi = ui.exp(_x, p);
-            auto zi = ui.exp(Un[i].sk.x, p);
-            zi = zi.inv(p);
+            auto zi = ui.exp(Un[i].sk.x, p).inv(p);
             auto wi = vi.mul(zi, p);
             dn.emplace_back(zi, wi);
         }
