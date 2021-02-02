@@ -9,7 +9,7 @@
 ```shell
 mkdir build
 cd build
-cmake -DUSE_CPPM_PATH=ON -DCMAKE_BUILD_TYPE=Debug .. && cmake --build . --config Debug --  -j{코어갯수}
+cmake -DUSE_CPPM_PATH=ON -DCMAKE_BUILD_TYPE=Release .. && cmake --build . --config Release --  -j{코어갯수} 
 ```
 바이너리파일 build/Debug에 존재
 
@@ -18,7 +18,7 @@ cmake -DUSE_CPPM_PATH=ON -DCMAKE_BUILD_TYPE=Debug .. && cmake --build . --config
 # example 3node
 # if head node
 # net {current port} {head port}
-# terminal 1 (pwd: build/Debug)
+# terminal 1 (pwd: build/Release)
 ./net 1111 1111
 
 # terminal 2 (pwd: project root)
@@ -31,6 +31,7 @@ cmake -DUSE_CPPM_PATH=ON -DCMAKE_BUILD_TYPE=Debug .. && cmake --build . --config
 start # process start
 end   # wait other nodes
 
+# log file (path: build/Release/logs)
 ```
 # RESULT
 - node3: [prev -> next(0.001s), head -> node... -> head (0.024s), success time(0.055s)]

@@ -6,7 +6,7 @@ script=""
 
 num=$(seq 1 $node_size)
 
-cd build/Debug/
+cd build/Release/
 
 for i in $num; do
     node_port=$((head_port+i))

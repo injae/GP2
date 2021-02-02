@@ -5,7 +5,9 @@
 #include <fmt/ranges.h>
 #include <fmt/chrono.h>
 #include <set>
-#include <chrono>
+#include <spdlog/spdlog.h>
+#include <spdlog/async.h>
+#include <spdlog/sinks/basic_file_sink.h>
 
 using namespace simnet::ring;
 using namespace hmc;
@@ -24,13 +26,12 @@ T decode(const std::string& data) {
 
 //#define DEBUG_MSG // print log message flag
 
-void head_node(Node& net) {
+void head_node(Node& net, std::shared_ptr<spdlog::logger> logger) {
     fmt::print("head Node\n");
-    auto log = [&net](const std::string& fmt) {
+    auto log = [&net,&logger](const std::string& fmt) {
         using namespace std::chrono;
-        fmt::print("[{}][{:%M:%S}]:{}\n",net.port(), system_clock::now().time_since_epoch(), fmt);
+        logger->info("[{}]:{}\n",net.port(), fmt);
     };
-    fmt::print("start\n");
     eig::public_key pk;
     eig::secret_key sk;
     log("generate pk");
@@ -119,12 +120,10 @@ void head_node(Node& net) {
     log("_Mn:{}, finish system"_format(_Mn));
 }
 
-void node(Node& net) {
-    auto log = [&net](const std::string& fmt) {
+void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
+    auto log = [&net,&logger](const std::string& fmt) {
         using namespace std::chrono;
-        #ifdef DEBUG_MSG
-        fmt::print("[{}][{:%M:%S}]:{}\n",net.port(), system_clock::now().time_since_epoch(), fmt);
-        #endif
+        logger->info("[{}]:{}\n",net.port(), fmt);
     };
 
     while(net.is_configure()) {}
@@ -199,7 +198,7 @@ void node(Node& net) {
     for(auto& zi_packet : net.receive_all()) {
         zi_packet.wait();
         Zn.push_back(decode<std::vector<Bn>>(zi_packet.get()));
-    }
+
     log("end");
 
     std::vector<std::string> _Mn;
@@ -209,6 +208,7 @@ void node(Node& net) {
         }).to_string());
     }
     log("_Mn:{}, finish system"_format(_Mn));
+    }
 }
 
 void start(const std::string& server_port, const std::string& head_port) {
@@ -216,20 +216,24 @@ void start(const std::string& server_port, const std::string& head_port) {
     auto net = Node(server_port, head_port);
 
     auto pool = net.configure(server_ip, net.head());
+    try {
+        auto logger = spdlog::basic_logger_mt<spdlog::async_factory>("node{}"_format(net.port()), "logs/{}-log.txt"_format(net.port()));
 
-    net.is_head() ? head_node(net) : node(net);
+        net.is_head() ? head_node(net, logger) : node(net, logger);
 
-    if(net.is_head()) {
-        fmt::print("wait finish all \n");
-        std::string msg;
-        std::cin >> msg;
-        net.send_all("end");
-        for(auto&& check : net.receive_all()) {
-            check.wait();
+        if(net.is_head()) {
+            fmt::print("wait finish all \n");
+            std::string msg;
+            std::cin >> msg;
+            net.send_all("end");
+            for(auto&& check : net.receive_all()) {
+                check.wait();
+            }
+        }else {
+            net.receive_from(net.head());
+            net.send_to("end",net.head());
         }
-    }else {
-        net.receive_from(net.head());
-        net.send_to("end",net.head());
+    } catch(const spdlog::spdlog_ex &ex) {
+        std::cout << "Log init failed: " << ex.what() << std::endl;
     }
-
 }
