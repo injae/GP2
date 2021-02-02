@@ -12,6 +12,7 @@
 #include <serdepp/adaptor/nlohmann_json.hpp>
 #include <fmt/ranges.h>
 #include <optional>
+#include "utility/parallel.hpp"
 
 using asio::ip::tcp;
 
@@ -76,19 +77,19 @@ namespace simnet::ring {
             next_ = head_;
         }
         void send_protocol(protocal proto, const std::string& target) {
-            fmt::print("send:{}\n",target, proto);
+            //fmt::print("send:{}\n",target, proto);
             if(proto.type == "spread") proto.data = port_;
             sessions_[target]->send(deserialize<json>(proto).dump());
         }
 
         void receive_protocol(const protocal& proto, std::shared_ptr<session> session) {
-            fmt::print("receive:{}\n" ,proto);
+            //fmt::print("receive:{}\n" ,proto);
             if(proto.type == "connect") {
                 if(sessions_.find(*proto.port) == sessions_.end()) { // new session
                     sessions_.insert({*proto.port, session}); 
                 } 
                 if(is_head(port_)) {
-                    if(is_head(*next_)) { next_ = proto.port; }
+                    if(is_head(*next_)) { next_ = proto.port; prev_ = proto.port; }
                     else {
                         prev_ = proto.port;
                         send_protocol(proto.change("spread"), *next_);
@@ -97,7 +98,8 @@ namespace simnet::ring {
             }else if(proto.type == "spread") {
                 if(not prev_) prev_ = proto.data;
                 if (*proto.port == port_) { // is self
-                    fmt::print("finish spread protocal\n"); return;
+                    //fmt::print("finish spread protocal\n");
+                    return;
                 }
                 if(sessions_.find(*proto.port) == sessions_.end()) { // new session
                     connect(*proto.ip, *proto.port);
@@ -106,12 +108,17 @@ namespace simnet::ring {
                 }
             }else if(proto.type == "transfer") {
                 session->queue().push(proto.data.value());
+
             }else if(proto.type == "config") {
-                if(*proto.data == "done") is_configure_mode.store(false);
+                if(*proto.data == "done") {
+                    is_configure_mode.store(false);
+                    //fmt::print("configure done:{}\n", is_configure());
+                }
             }
             else {
                 fmt::print(stderr, "unknown protocal\n"); exit(1);
             }
+            //fmt::print("info: head:{}, next:{}, port:{}, prev:{}\n",*head_, *next_, port_, *prev_);
         }
 
         void connect(const std::string& ip, const std::string& port) { // connect other
@@ -137,13 +144,13 @@ namespace simnet::ring {
                 sessions_[*data.port] = sess;
                 receive_protocol(data, sess);
                 keep_receive(sess);
-                fmt::print("{}\n",sessions_);
+                //fmt::print("{}\n",sessions_);
                 accept();
             });
         }
 
         void keep_receive(std::shared_ptr<session> sess) {
-            fmt::print("receive start\n");
+            //fmt::print("receive start\n");
             sess->keep_receive([this,sess](auto str){
                 auto json = json::parse(str);
                 auto data = serialize<protocal>(json);
@@ -152,7 +159,7 @@ namespace simnet::ring {
         }
 
         std::future<std::string> receive_from(const std::string& target) {
-            return sessions_[target]->receive();
+            return sessions_[target]->queue().wait_get();
         }
 
         void send_to(protocal proto, const std::string& target) {
@@ -160,7 +167,7 @@ namespace simnet::ring {
         }
 
         void send_to(const std::string& message, const std::string& target) {
-            sessions_[target]->send(message);
+            send_to(protocal::transfer(message), target);
         }
 
         void send_all(protocal proto) {
@@ -169,10 +176,8 @@ namespace simnet::ring {
             }
         }
 
-        void send_all(const std::string& message) {
-            for(auto& [port, session] : sessions_) {
-                session->send(message);
-            }
+        inline void send_all(const std::string& message) {
+            send_all(protocal::transfer(message));
         }
 
         std::vector<std::thread> configure(const std::string& ip, const std::string& port) {
@@ -199,11 +204,15 @@ namespace simnet::ring {
             }
         }
 
-        bool is_configure() { return is_configure_mode.load(); }
+        bool is_configure() {
+            return is_configure_mode.load();
+        }
 
         std::vector<std::future<std::string>> receive_all() {
             std::vector<std::future<std::string>> messages;
-            for(auto& [port, session] : sessions_) { messages.push_back(std::move(session->receive())); }
+            for(auto& [port, sess] : sessions_) {
+                messages.push_back(sess->queue().wait_get());
+            }
             return messages;
         }
 

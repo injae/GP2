@@ -10,18 +10,6 @@
    name = "hm_crypt"
    source = ["src/hm_crypt/.*"]
 
-#[[bin]]
-#   name = "eig"
-#   source = ["src/main.cpp"]
-    
-#[[bin]]
-#   name = "server"
-#   source = ["src/simnet_server.cpp"]
-#
-#[[bin]]
-#   name = "client"
-#   source = ["src/simnet_client.cpp"]
-
 [[bin]]
    name = "net"
    source = ["src/ring_net.cpp"]
@@ -30,9 +18,6 @@
     clang = "-Wdeprecated-declarations"
 [profile.release.compiler]
     clang = "-Wdeprecated-declarations"
-
-#[workspace]
-#    member=["libs/asio"]
 
 [dependencies]
     fmt="7.1.3"

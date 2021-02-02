@@ -18,19 +18,20 @@ cmake -DUSE_CPPM_PATH=ON -DCMAKE_BUILD_TYPE=Debug .. && cmake --build . --config
 # example 3node
 # if head node
 # net {current port} {head port}
-# terminal 1
+# terminal 1 (pwd: build/Debug)
 ./net 1111 1111
 
-# terminal 2
-./net 1112 1111
+# terminal 2 (pwd: project root)
+# test_script {head port} {nodes count}
+./test_script.sh 1111 2
 
-# terminal 3
-./net 1113 1111
 
 
 # terminal 1
-start
-end
+start # process start
+end   # wait other nodes
 
 ```
+# RESULT
+- node3: [prev -> next(0.001s), head -> node... -> head (0.024s), success time(0.055s)]
 

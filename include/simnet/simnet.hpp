@@ -13,8 +13,8 @@
 #include <asio/streambuf.hpp>
 #include <asio/connect.hpp>
 #include <fmt/format.h>
-#include <future>
 #include <simnet/none_block_queue.hpp>
+#include <asio/use_future.hpp>
 
 using asio::ip::tcp;
 namespace simnet {
@@ -46,8 +46,10 @@ namespace simnet {
         void keep_receive() {
             auto self(shared_from_this());
             asio::async_read_until(socket_, buffer_, "\r\n", [this](auto ec, auto length) {
-                //if(ec) { fmt::print(stderr, "Error:{}\n", ec.message()); return; }
-                if(ec) return; 
+                if(ec) {
+                    fmt::print(stderr, "Error:{}\n", ec.message());
+                    return;
+                }
                 queue_.push(make_string(buffer_, length));
                 receive();
             });
@@ -56,8 +58,14 @@ namespace simnet {
         void keep_receive(Func&& func) {
             auto self(shared_from_this());
             asio::async_read_until(socket_, buffer_, "\r\n", [this, func](auto ec, auto length) {
-                if(ec == asio::error::operation_aborted) { fmt::print("abort receiving\n"); return;}
-                if(ec) { fmt::print(stderr, "Error:{}\n", ec.message()); exit(1); }
+                if(ec == asio::error::operation_aborted) {
+                    fmt::print("abort:{}",buffer_.size());
+                    fmt::print("abort receiving\n");
+                    return;
+                }
+                if(ec) {
+                    fmt::print(stderr, "Error:{}\n", ec.message()); exit(1);
+                }
                 func(make_string(buffer_, length));
                 keep_receive(func);
             });
@@ -66,22 +74,25 @@ namespace simnet {
         std::future<std::string> receive() {
             auto self(shared_from_this());
             return std::async([this](){
-                auto length = asio::read_until(socket_, buffer_, "\r\n");
-                return make_string(buffer_, length);
+                auto length_f= asio::async_read_until(socket_, buffer_, "\r\n", asio::use_future);
+                length_f.wait();
+                auto msg = make_string(buffer_, length_f.get());
+                //fmt::print("receive:{}\n",msg);
+                return msg;
             });
         }
 
-        simnet::queue<std::string>& queue() { return queue_; }
-
+        auto& queue() { return queue_; }
         tcp::socket& socket() { return socket_; }
         asio::streambuf buffer_;
     private:
         tcp::socket socket_;
         std::promise<std::string> promise_;
-        simnet::queue<std::string> queue_;
+        simnet::block_queue<std::string> queue_;
     };
 
     class server {
+
     public:
         server(asio::io_context& io_context, short port)
             : acceptor_(io_context, tcp::endpoint(asio::ip::address_v4::any(), port)), socket_(io_context) {}

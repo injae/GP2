@@ -25,7 +25,6 @@ find_cppkg(serdepp git  MODULE serdepp::serdepp TYPE lib)
 
 cppm_target_define(hm_crypt STATIC
 SOURCES
-    src/hm_crypt/:w
     src/hm_crypt/psi.cpp
     src/hm_crypt/algorithm.cpp
     src/hm_crypt/hash.cpp
