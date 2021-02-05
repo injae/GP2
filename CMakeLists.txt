@@ -26,7 +26,6 @@ find_cppkg(spdlog 1.8.2  MODULE spdlog::spdlog TYPE lib)
 
 cppm_target_define(hm_crypt STATIC
 SOURCES
-    src/hm_crypt/psi.cpp
     src/hm_crypt/algorithm.cpp
     src/hm_crypt/hash.cpp
     src/hm_crypt/eig.cpp
