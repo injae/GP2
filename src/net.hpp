@@ -198,6 +198,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
     for(auto& zi_packet : net.receive_all()) {
         zi_packet.wait();
         Zn.push_back(decode<std::vector<Bn>>(zi_packet.get()));
+    }
 
     log("end");
 
@@ -208,7 +209,6 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
         }).to_string());
     }
     log("_Mn:{}, finish system"_format(_Mn));
-    }
 }
 
 void start(const std::string& server_port, const std::string& head_port) {
