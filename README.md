@@ -1,5 +1,5 @@
 # 코드 설명
-- 구현 로직은는 ring_net.cpp에존재
+- 구현 로직은는 net.cpp에존재
 - node들의 타입은 head_node , node로 2가지로 정의된다.
 - head_node를 기준으로 네트워크에 참여하는 로직이다.
 - net.cpp 파일의 head_node함수가 head_node의 코드이고 node가 서버에 join하는 node들의 코드이다.
