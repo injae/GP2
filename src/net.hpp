@@ -44,7 +44,7 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger) {
 
     fmt::print("== network setting end ==\n");
     fmt::print("info: head:{}, next:{}, port:{}, prev:{}\n",net.head(), net.next(), net.port(), net.prev());
-    std::string Mi = net.port();
+    std::string Mi = net.port(); // 노드의 메시지
 
     log("send pk to all");
     net.send_all(encode(pk));
@@ -129,7 +129,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
     while(net.is_configure()) {}
     log("== network setting end ==\n");
     log("info: head:{}, next:{}, port:{}, prev:{}\n"_format(net.head(), net.next(), net.port(), net.prev()));
-    std::string Mi = net.port();
+    std::string Mi = net.port(); // Node의 메세지
 
     eig::public_key pk;
     eig::secret_key sk;
