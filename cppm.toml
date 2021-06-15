@@ -19,10 +19,12 @@
 [profile.release.compiler]
     clang = "-Wdeprecated-declarations"
 
+[workspace]
+   member=["lib/serdepp"] 
+
 [dependencies]
     fmt="7.1.3"
     OpenSSL="git"
     range-v3="0.11.0"
     nlohmann_json="3.9.1"
-    serdepp="git"
     spdlog="1.8.2"
