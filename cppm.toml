@@ -15,9 +15,9 @@
    source = ["src/ring_net.cpp", "src/hm_crypt/.*"]
 
 [profile.dev.compiler]
-    clang = "-Wdeprecated-declarations"
+    clang = "-Wno-deprecated-declarations"
 [profile.release.compiler]
-    clang = "-Wdeprecated-declarations"
+    clang = "-Wno-deprecated-declarations"
 
 [workspace]
    member=["lib/serdepp"] 

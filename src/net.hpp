@@ -74,7 +74,7 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger) {
     Cn.push_back(Ci);
     for(auto& Cn_packet : net.receive_all()) {
         Cn_packet.wait();
-        Cn.push_back(std::move(decode<eig::cipher>(Cn_packet.get())));
+        Cn.push_back(decode<eig::cipher>(Cn_packet.get()));
     }
     log("end");
 

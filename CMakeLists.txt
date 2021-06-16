@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 
-set(CPPM_VERSION dev)
+set(CPPM_VERSION 0.0.13)
 include(cmake/cppm_loader.cmake)
 cppm_project()
 
@@ -9,10 +9,10 @@ cppm_setting()
 cppm_cxx_standard(17)
 cppm_compiler_option(
    DEBUG
-      CLANG "-Wdeprecated-declarations"
+      CLANG "-Wno-deprecated-declarations"
 
    RELEASE
-      CLANG "-Wdeprecated-declarations"
+      CLANG "-Wno-deprecated-declarations"
 )
 
 include(cmake/OpenSSLEnv.cmake)
@@ -35,7 +35,9 @@ SOURCES
 
 
 set(second_global_deps PUBLIC OpenSSL fmt nlohmann_json range-v3 serdepp spdlog)
-cppm_target_dependencies(net ${second_global_deps})
+cppm_target_dependencies(net
+   ${second_global_deps})
 
 
-#cppm_target_install(net)
+cppm_target_install(net)
+
