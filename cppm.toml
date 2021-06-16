@@ -6,13 +6,13 @@
 [cmake]
     include = ["cmake/OpenSSLEnv.cmake"]
 
-[lib]
-   name = "hm_crypt"
-   source = ["src/hm_crypt/.*"]
+#[lib]
+#   name = "hm_crypt"
+#   source = ["src/hm_crypt/.*"]
 
 [[bin]]
    name = "net"
-   source = ["src/ring_net.cpp"]
+   source = ["src/ring_net.cpp", "src/hm_crypt/.*"]
 
 [profile.dev.compiler]
     clang = "-Wdeprecated-declarations"
