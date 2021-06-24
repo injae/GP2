@@ -27,24 +27,28 @@ T decode(const std::string& data) {
 //#define DEBUG_MSG // print log message flag
 
 void head_node(Node& net, std::shared_ptr<spdlog::logger> logger) {
-    fmt::print("head Node\n");
-    auto log = [&net,&logger](const std::string& fmt) {
+    auto log = [&net, logger](const std::string& fmt) {
         using namespace std::chrono;
+        fmt::print("{}\n",fmt);
         logger->info("[{}]:{}\n",net.port(), fmt);
+        logger->flush();
     };
+    fmt::print("head Node\n");
+    fmt::print("input some text:");
+    //std::string Mi = net.port(); // 노드의 메시지
+    std::string Mi; // 노드의 메시지
+    std::cin >> Mi;
+
     eig::public_key pk;
     eig::secret_key sk;
     log("generate pk");
     pk = eig::public_key(2048);
     log("generated pk start system");
 
-    log("input some text");
-    std::string msg; std::cin >> msg;
     net.send_all(protocal::config());
 
     fmt::print("== network setting end ==\n");
     fmt::print("info: head:{}, next:{}, port:{}, prev:{}\n",net.head(), net.next(), net.port(), net.prev());
-    std::string Mi = net.port(); // 노드의 메시지
 
     log("send pk to all");
     net.send_all(encode(pk));
@@ -121,9 +125,10 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger) {
 }
 
 void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
-    auto log = [&net,&logger](const std::string& fmt) {
+    auto log = [&net,logger](const std::string& fmt) {
         using namespace std::chrono;
         logger->info("[{}]:{}\n",net.port(), fmt);
+        logger->flush();
     };
 
     while(net.is_configure()) {}
@@ -141,7 +146,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
 
     auto& [p, q, g, Y, yi] = pk;
 
-    auto xi = eig::random_r(q);
+   auto xi = eig::random_r(q);
     sk = eig::secret_key(pk, xi);
     yi = g.exp(xi, p);
     log("spead yi");
@@ -200,6 +205,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
         Zn.push_back(decode<std::vector<Bn>>(zi_packet.get()));
     }
 
+    fmt::print("[{}]: end\n",net.port());
     log("end");
 
     std::vector<std::string> _Mn;
@@ -217,23 +223,24 @@ void start(const std::string& server_port, const std::string& head_port) {
 
     auto pool = net.configure(server_ip, net.head());
     try {
-        auto logger = spdlog::basic_logger_mt<spdlog::async_factory>("node{}"_format(net.port()), "logs/{}-log.txt"_format(net.port()));
+        auto logger = spdlog::basic_logger_mt("node-{}"_format(net.port()), "logs/{}-log.txt"_format(net.port()));
 
         net.is_head() ? head_node(net, logger) : node(net, logger);
 
         if(net.is_head()) {
-            fmt::print("wait finish all \n");
+            fmt::print("wait finish all and input test end\n");
             std::string msg;
             std::cin >> msg;
+            std::cin.clear();
             net.send_all("end");
-            for(auto&& check : net.receive_all()) {
-                check.wait();
-            }
-        }else {
+            for(auto&& check : net.receive_all()) { check.wait(); }
+        } else {
             net.receive_from(net.head());
             net.send_to("end",net.head());
         }
-    } catch(const spdlog::spdlog_ex &ex) {
+    } catch(const spdlog::spdlog_ex& ex) {
         std::cout << "Log init failed: " << ex.what() << std::endl;
+    } catch(const std::exception& ex){
+        fmt::print("finish\n");
     }
 }
