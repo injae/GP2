@@ -18,6 +18,7 @@ namespace ssl {
         Bn(const int rhs);
         Bn(const Bn& rhs);
         Bn(const u_int8_t* bytes, const size_t len);
+        Bn(const std::vector<u_int8_t>& bytes);
         Bn(const std::string& str);
         virtual ~Bn(void);
 

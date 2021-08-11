@@ -29,6 +29,10 @@ namespace ssl {
         BN_bin2bn(bytes, len, ptr_);  ///< store the given binary string into an openssl big num
     }
 
+    Bn::Bn(const std::vector<u_int8_t>& bytes) : Bn() {
+        BN_bin2bn(bytes.data(), bytes.size(), ptr_);  ///< store the given binary string into an openssl big num
+    }
+
     Bn::Bn(const std::string& str) : Bn() {
         std::vector<uint8_t> bin(str.begin(), str.end());
         bin.push_back('\0');

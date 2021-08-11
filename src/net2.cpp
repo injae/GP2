@@ -115,19 +115,21 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
 
     log("Gen A");
     auto wi = expand_bytes(Wi.to_bytes(), 236);
-    assert(Wi == Bn(wi.data(), wi.size()));
+    assert(Wi == Bn(wi));
+
     std::vector<std::vector<uint8_t>> a_alpha_n;
     std::vector<uint8_t> al(236,0);
-    auto alpha_num = l-1;
-    auto step = wi.size() / alpha_num;
+    auto alpha_size = l-1;
+    auto range = wi.size() / alpha_size;
+    auto remain = wi.size() % alpha_size; 
     auto alphai = sha1::hash(eig::random_r(p).to_hex());
 
-    for(int i = 0; i < alpha_num; ++i) {
+    for(int i = 0; i < alpha_size; ++i) {
         std::vector<uint8_t> buf(wi.size(), 0);
-        for(int j = 0; j < step; ++j) { auto idx = i*step+j; buf[idx] = wi[idx]; }
-        if(i+1 == alpha_num) {
-            for (int j = 0; j < wi.size()%alpha_num; ++j) {
-                auto idx = (i+1)*step+j; buf[idx] = wi[idx];
+        for(int j = 0; j < range; ++j) { auto idx = i*range+j;  buf[idx] = wi[idx]; }
+        if(i+1 == alpha_size) {
+            for (int j = 0; j < remain; ++j) {
+                auto idx = (i+1)*range+j; buf[idx] = wi[idx];
             }
         }
         a_alpha_n.push_back(append_bytes(buf, alphai));
@@ -136,11 +138,10 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     
     std::vector<cipher> datas;
     for(auto& a_alpha : a_alpha_n) {
-        Bn si, ti;
+        Bn si, ti, bi = eig::random_r(p);
         cipher cipher;
-        auto bi = eig::random_r(p);
         cipher.s = g.exp(bi, p);
-        cipher.t = Bn(a_alpha.data(), a_alpha.size()).mul(yi.exp(bi, p),p);
+        cipher.t = Bn(a_alpha).mul(yi.exp(bi, p),p);
         datas.emplace_back(cipher);
     }
 
@@ -148,13 +149,15 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     for(auto& [key, _] : net.sessions()) { keys.push_back(key); }
     sort(keys);
 
-    std::priority_queue<std::string> J;
-
+    log("#Step3");
     std::random_device rd;
     std::uniform_int_distribution<int> rand_gen(0, keys.size()-1);
+
+    std::priority_queue<std::string> J;
     for(int i = 0; i < datas.size()-1; ++i) { J.push(keys[rand_gen(rd)]); }
     log("J[0]:{}"_format(J.top()));
 
+    log("send random node");
     int i = 1;
     for(auto& key : keys) { 
         send_one proto;
@@ -164,7 +167,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         if(proto.check) { net.send_to(encode(datas[i++]), key); }
     }
 
-    log("#Step3");
+    log("receive random node");
     std::vector<cipher> shuffle_set;
     shuffle_set.push_back(datas[0]);
     for(auto& [port, check] : net.receive_all_with_port()) {
@@ -183,20 +186,21 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     log("#Step3.4");
     auto gamma = eig::random_r(p);
     for(auto& [u ,v] : shuffle_set) {
-        u.exp_inplace(gamma, p);
-        v.exp_inplace(gamma, p);
+        u = u.mul(g.exp(gamma, p), p);
+        v = v.mul(yi.exp(gamma, p), p);
     }
 
     log("#Step5");
     for(int i = 0; i <= net.size(); ++i) {
         fmt::print("{}->[{}]\n", shuffle_set.size(),net.next());
         net.send_to(encode(shuffle_set), net.next());
-        auto future = net.receive_from(net.prev());
-        future.wait();
+
+        auto future = net.receive_from(net.prev()); future.wait();
         shuffle_set= decode<std::vector<cipher>>(future.get());
+
         fmt::print("{}<-[{}]\n", shuffle_set.size(), net.prev());
         for(auto& [u ,v] : shuffle_set) {
-            v.mul_inplace(u.inv(p).exp(xi,p), p);
+            v = v.mul(u.inv(p).exp(xi,p), p);
         }
     }
 
@@ -210,12 +214,11 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     for(auto& [_u ,shf] : shuffle_set) {
         auto shf_vec = shf.to_bytes();
         std::vector<uint8_t> shf_id(shf_vec.begin()+236, shf_vec.end());
-        fmt::print("- shf-id: {} == alphai{}\n", shf_id, alphai);
         shf_vec.erase(shf_vec.begin()+236, shf_vec.end());
-        //shf = Bn(shf_vec.data(), shf_vec.size());
+        //shf = Bn(shf_vec);
         fmt::print("- shf: {}\n", serde::to_string(shf));
         for(auto& a_alpha : a_alpha_n) {
-            auto bn = Bn(a_alpha.data(), a_alpha.size());
+            auto bn = Bn(a_alpha);
             fmt::print("- a_alpha: {}\n", serde::to_string(bn));
             if(shf == bn) fmt::print("find\n");
         }
