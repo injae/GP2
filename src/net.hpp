@@ -1,13 +1,18 @@
 #include <hm_crypt/eig.hpp>
 #include <network/ring.hpp>
 #include <hm_crypt/hash.hpp>
+
 #include <range/v3/all.hpp>
-#include <fmt/ranges.h>
-#include <fmt/chrono.h>
-#include <set>
+
 #include <spdlog/spdlog.h>
 #include <spdlog/async.h>
 #include <spdlog/sinks/basic_file_sink.h>
+
+#include <serdepp/adaptor/rapidjson.hpp>
+
+#include <fmt/chrono.h>
+
+#include <set>
 
 using namespace simnet::ring;
 using namespace hmc;
@@ -16,12 +21,18 @@ using namespace ranges;
 
 template<typename T>
 T decode(const std::string& data) {
-    auto json = nlohmann::json::parse(data);
-    return serde::serialize<T>(json);
+    rapidjson::Document doc;
+    doc.Parse(data.c_str());
+    return serde::deserialize<T>(doc);
 }
  template<typename T>
  std::string encode(const T& data) {
-     return serde::deserialize<nlohmann::json>(data).dump();
+     using namespace rapidjson;
+     auto doc = serde::serialize<rapidjson::Document>(data);
+     StringBuffer buffer;
+     Writer<StringBuffer> writer(buffer);
+     doc.Accept(writer);
+     return buffer.GetString();
  }
 
 //#define DEBUG_MSG // print log message flag
@@ -45,7 +56,7 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger) {
     pk = eig::public_key(2048);
     log("generated pk start system");
 
-    net.send_all(protocal::config());
+    net.send_all(protocol::config());
 
     fmt::print("== network setting end ==\n");
     fmt::print("info: head:{}, next:{}, port:{}, prev:{}\n",net.head(), net.next(), net.port(), net.prev());

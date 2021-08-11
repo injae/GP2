@@ -77,7 +77,6 @@ namespace simnet {
                 auto length_f= asio::async_read_until(socket_, buffer_, "\r\n", asio::use_future);
                 length_f.wait();
                 auto msg = make_string(buffer_, length_f.get());
-                //fmt::print("receive:{}\n",msg);
                 return msg;
             });
         }

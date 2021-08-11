@@ -5,7 +5,7 @@
 
 #include "hm_crypt/bn.hpp"
 #include "hm_crypt/algorithm.hpp"
-#include <serdepp/utility.hpp>
+#include <serdepp/serde.hpp>
 
 namespace hmc::eig {
     using namespace ssl;
@@ -21,14 +21,14 @@ namespace hmc::eig {
     inline Bn random_r(const Bn& g) { return util::random(g.sub(Bn::one()), [](auto& r){ return Bn::one() < r; }); }
 
     struct cipher {
-        derive_serde(cipher, ctx.TAG(u).TAG(v);)
+        DERIVE_SERDE(cipher,(&Self::u, "u")(&Self::v, "v"))
         Bn u;
         Bn v;
         bool operator<(const cipher& rhs) const { return u < rhs.u; }
     };
 
     struct public_key {
-        derive_serde(public_key, ctx.TAG(p).TAG(q).TAG(g);)
+        DERIVE_SERDE(public_key,(&Self::p, "p")(&Self::q, "q")(&Self::g, "g");)
         Bn p;
         Bn q;
         Bn g;

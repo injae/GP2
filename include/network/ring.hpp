@@ -4,14 +4,8 @@
 #define  __NETWORK_RINGNET_HPP__
 
 #include <simnet/simnet.hpp>
-
-#include <unordered_map>
-#include <optional>
-#include <nlohmann/json.hpp>
-#include <serdepp/utility.hpp>
+#include <serdepp/serde.hpp>
 #include <serdepp/adaptor/nlohmann_json.hpp>
-#include <fmt/ranges.h>
-#include <optional>
 #include "utility/parallel.hpp"
 
 using asio::ip::tcp;
@@ -20,13 +14,13 @@ namespace simnet::ring {
     using namespace serde;
     using nlohmann::json;
 
-    struct protocal {
-        derive_serde(protocal, ctx.TAG(type).TAG(ip).TAG(port).TAG(data);)
+    struct protocol {
+        DERIVE_SERDE(protocol,(&Self::type, "type")(&Self::ip, "ip")(&Self::port, "port")(&Self::data, "data"))
         std::string type; // spread, connect
         std::optional<std::string> ip;
         std::optional<std::string> port;
         std::optional<std::string> data;
-        static protocal transfer(const std::string& data) {
+        static protocol transfer(const std::string& data) {
             return {
                 "transfer",
                 std::nullopt,
@@ -34,7 +28,7 @@ namespace simnet::ring {
                 data,
             };
         }
-        static protocal spread(session::ptr target, const std::string& port, const std::string& sender_port) {
+        static protocol spread(session::ptr target, const std::string& port, const std::string& sender_port) {
             return {
                 "spread",
                 target->socket().local_endpoint().address().to_string(),
@@ -42,14 +36,14 @@ namespace simnet::ring {
                 sender_port,
             };
         }
-        static protocal connect(session::ptr target, const std::string& port) {
+        static protocol connect(session::ptr target, const std::string& port) {
             return {
                 "connect",
                 target->socket().local_endpoint().address().to_string(),
                 port
             };
         }
-        static protocal config(const std::string& state = "done") {
+        static protocol config(const std::string& state = "done") {
             return {
                 "config",
                 std::nullopt,
@@ -57,7 +51,7 @@ namespace simnet::ring {
                 state
             };
         }
-        protocal change(const std::string& ch_type) const {
+        protocol change(const std::string& ch_type) const {
             auto result = *this;
             result.type = ch_type;
             return result;
@@ -76,13 +70,13 @@ namespace simnet::ring {
             head_ = head ? head : port;
             next_ = head_;
         }
-        void send_protocol(protocal proto, const std::string& target) {
+        void send_protocol(protocol proto, const std::string& target) {
             //fmt::print("send:{}\n",target, proto);
             if(proto.type == "spread") proto.data = port_;
-            sessions_[target]->send(deserialize<json>(proto).dump());
+            sessions_[target]->send(serialize<json>(proto).dump());
         }
 
-        void receive_protocol(const protocal& proto, std::shared_ptr<session> session) {
+        void receive_protocol(const protocol& proto, std::shared_ptr<session> session) {
             //fmt::print("receive:{}\n" ,proto);
             if(proto.type == "connect") {
                 if(sessions_.find(*proto.port) == sessions_.end()) { // new session
@@ -125,7 +119,7 @@ namespace simnet::ring {
             auto ses = std::make_shared<session>(tcp::socket(io_context_));
             sessions_.insert({port, ses});
             asio::connect(ses->socket(), resolver_.resolve(ip, port));
-            send_protocol(protocal::connect(ses, port_), port);
+            send_protocol(protocol::connect(ses, port_), port);
             keep_receive(ses);
         }
 
@@ -140,7 +134,7 @@ namespace simnet::ring {
                 auto sess = std::make_shared<session>(std::move(socket_));
                 auto fdata = sess->receive(); fdata.wait();
                 auto json = json::parse(fdata.get());
-                auto data = serialize<protocal>(json);
+                auto data = deserialize<protocol>(json);
                 sessions_[*data.port] = sess;
                 receive_protocol(data, sess);
                 keep_receive(sess);
@@ -153,7 +147,7 @@ namespace simnet::ring {
             //fmt::print("receive start\n");
             sess->keep_receive([this,sess](auto str){
                 auto json = json::parse(str);
-                auto data = serialize<protocal>(json);
+                auto data = deserialize<protocol>(json);
                 receive_protocol(data, sess);
             });
         }
@@ -162,23 +156,25 @@ namespace simnet::ring {
             return sessions_[target]->queue().wait_get();
         }
 
-        void send_to(protocal proto, const std::string& target) {
-            sessions_[target]->send(deserialize<json>(proto).dump());
+        void send_to(protocol proto, const std::string& target) {
+            sessions_[target]->send(serialize<json>(proto).dump());
         }
 
         void send_to(const std::string& message, const std::string& target) {
-            send_to(protocal::transfer(message), target);
+            send_to(protocol::transfer(message), target);
         }
 
-        void send_all(protocal proto) {
+        void send_all(protocol proto) {
             for(auto& [port, session] : sessions_) {
-                session->send(deserialize<json>(proto).dump());
+                session->send(serialize<json>(proto).dump());
             }
         }
 
         inline void send_all(const std::string& message) {
-            send_all(protocal::transfer(message));
+            send_all(protocol::transfer(message));
         }
+
+        size_t size() { return sessions_.size(); }
 
         std::vector<std::thread> configure(const std::string& ip, const std::string& port) {
             std::vector<std::thread> pool;
@@ -212,6 +208,14 @@ namespace simnet::ring {
             std::vector<std::future<std::string>> messages;
             for(auto& [port, sess] : sessions_) {
                 messages.push_back(sess->queue().wait_get());
+            }
+            return messages;
+        }
+
+        std::vector<std::pair<std::string,std::future<std::string>>> receive_all_with_port() {
+            std::vector<std::pair<std::string,std::future<std::string>>> messages;
+            for(auto& [port, sess] : sessions_) {
+                messages.emplace_back(port,sess->queue().wait_get());
             }
             return messages;
         }

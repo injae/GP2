@@ -6,23 +6,36 @@
 [cmake]
     include = ["cmake/OpenSSLEnv.cmake"]
 
-#[lib]
-#   name = "hm_crypt"
-#   source = ["src/hm_crypt/.*"]
+[lib]
+   name = "hm_crypt"
+   source = ["src/hm_crypt/.*"]
 
 [[bin]]
    name = "net"
-   source = ["src/ring_net.cpp", "src/hm_crypt/.*"]
+   source = ["src/ring_net.cpp"]
 
-[profile.dev.compiler]
-    clang = "-Wno-deprecated-declarations"
-[profile.release.compiler]
-    clang = "-Wno-deprecated-declarations"
+[[bin]]
+   name = "net2"
+   source = ["src/net2.cpp"]
+
+[[example]]
+    name = "network_client"
+    source = ["examples/simnet_client.cpp"]
+
+[[example]]
+    name = "network_server"
+    source = ["examples/simnet_server.cpp"]
+
+#[profile.dev.compiler]
+#    clang = "-Wno-deprecated-declarations"
+#
+#[profile.release.compiler]
+#    clang = "-Wno-deprecated-declarations"
 
 [dependencies]
-    fmt="7.1.3"
     OpenSSL="git"
     range-v3="0.11.0"
-    nlohmann_json="3.9.1"
     spdlog="1.8.2"
-    serdepp = "0.0.2"
+    RapidJSON="1.1.1"
+    serdepp = "0.1.0"
+    nlohmann_json="3.9.1"

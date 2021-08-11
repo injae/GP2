@@ -7,10 +7,7 @@
 #include <openssl/bn.h>
 #include <openssl/rand.h>
 
-#include <fmt/format.h>
-#include <nlohmann/json.hpp>
-
-#include <serdepp/utility.hpp>
+#include <serdepp/serde.hpp>
 
 namespace ssl {
     class Bn
@@ -32,6 +29,7 @@ namespace ssl {
 
         ///< size
         int byte_size(void) const;
+
         int bit_size(void) const;
 
         ///< choose a random and store itself
@@ -97,26 +95,20 @@ namespace ssl {
     };
 }
 
-/// BN -> fmt, serializer
-//template<> struct fmt::formatter<ssl::Bn> : fmt::formatter<std::string> {
-//  template<typename FormatContext>
-//  auto format(ssl::Bn const& bn, FormatContext& ctx){ return fmt::formatter<std::string>::format(bn.to_hex(), ctx); }
-//};
-//
-///// BN -> json and json -> BN, serializer, deserializer
-//template <> struct nlohmann::adl_serializer<ssl::Bn> {
-//    static void to_json(json& j, const ssl::Bn& value) {j = value.to_hex();}
-//    static void from_json(const json &j, ssl::Bn &value) {value.from_hex(j.get<std::string>().c_str());}
-//};
-
 namespace serde {
     using namespace ssl;
-    template<> struct serializer<Bn> : serializer_convertor<Bn, std::string> { 
-        using FROM = Bn;
-        using INTO   = std::string;
-        static void from(FROM& from_, INTO& to_) { from_.from_hex(to_.c_str()); }
-        static void into(INTO& to_, FROM& from_) { to_ = from_.to_hex(); }
-    }; 
+    template<typename serde_ctx>
+        struct serde_serializer<Bn, serde_ctx> {
+        inline static auto from(serde_ctx& ctx, Bn& data, std::string_view key) {
+            std::string temp="";
+            serde_adaptor<typename serde_ctx::Adaptor, std::string>::from(ctx.adaptor, key, temp);
+            data.from_hex(temp.c_str());
+        }
+        constexpr inline static auto into(serde_ctx& ctx, const Bn& data, std::string_view key) {
+            serde_adaptor<typename serde_ctx::Adaptor, std::string>::into(ctx.adaptor, key, data.to_hex());
+
+        }
+    };
 }
 
 #endif 
