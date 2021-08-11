@@ -62,6 +62,13 @@ std::vector<u_int8_t> append_bytes(T& a, T2& b) {
     return buffer;
 }
 
+template<typename T>
+std::pair<std::vector<u_int8_t>, std::vector<u_int8_t>> split_bytes(T&& vec, size_t point) {
+    std::vector<uint8_t> first = vec, second(vec.begin()+236, vec.end());
+    first.erase(first.begin()+point, first.end());
+    return {first, second}; 
+}
+
 
 void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& message) {
     auto log = [&net, logger](const std::string& fmt) {
@@ -141,7 +148,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         Bn si, ti, bi = eig::random_r(p);
         cipher cipher;
         cipher.s = g.exp(bi, p);
-        cipher.t = Bn(a_alpha).mul(yi.exp(bi, p),p);
+        cipher.t = Bn(a_alpha).mul(Y.exp(bi, p),p);
         datas.emplace_back(cipher);
     }
 
@@ -187,7 +194,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     auto gamma = eig::random_r(p);
     for(auto& [u ,v] : shuffle_set) {
         u = u.mul(g.exp(gamma, p), p);
-        v = v.mul(yi.exp(gamma, p), p);
+        v = v.mul(Y.exp(gamma, p), p);
     }
 
     log("#Step5");
@@ -210,12 +217,9 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         auto buf = decode<decltype(shuffle_set)>(f.get());
         shuffle_set.insert(shuffle_set.end(), buf.begin(), buf.end());
     }
-    
+
     for(auto& [_u ,shf] : shuffle_set) {
-        auto shf_vec = shf.to_bytes();
-        std::vector<uint8_t> shf_id(shf_vec.begin()+236, shf_vec.end());
-        shf_vec.erase(shf_vec.begin()+236, shf_vec.end());
-        //shf = Bn(shf_vec);
+        auto [data, id] = split_bytes(shf.to_bytes(), 236);
         fmt::print("- shf: {}\n", serde::to_string(shf));
         for(auto& a_alpha : a_alpha_n) {
             auto bn = Bn(a_alpha);
