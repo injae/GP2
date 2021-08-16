@@ -7,6 +7,7 @@
 #include <spdlog/sinks/basic_file_sink.h>
 
 #include <serdepp/adaptor/rapidjson.hpp>
+#include <serdepp/adaptor/nlohmann_json.hpp>
 #include <random>
 
 #include <filesystem>
@@ -25,9 +26,20 @@ struct cipher {
 };
 
 struct send_one {
-    DERIVE_SERDE(send_one, (&Self::check, "check"))
+    DERIVE_SERDE(send_one, (&Self::check, "check_"))
     bool check;
 };
+
+//template<typename T>
+//T decode(const std::string& data) {
+//    auto json= nlohmann::json::parse(data);
+//    return serde::deserialize<T>(json);
+//}
+//
+//template<typename T>
+//std::string encode(const T& data) {
+//    return serde::serialize<nlohmann::json>(data).dump();
+//}
 
 template<typename T>
 T decode(const std::string& data) {
@@ -53,6 +65,13 @@ std::vector<u_int8_t> expand_bytes(std::vector<u_int8_t> data, size_t length) {
     }
     return buffer;
 }
+
+
+void print_bytes(std::vector<uint8_t>& vec) {
+    for(auto& it : vec) { fmt::print("{},",it);}
+    fmt::print("\n==\n");
+}
+
 
 template<typename T, typename T2>
 std::vector<u_int8_t> append_bytes(T& a, T2& b) {
@@ -88,7 +107,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     eig::public_key pk;
     std::string key_cache ="{}-key.json"_format(net.port());
     if(std::filesystem::exists(key_cache)) {
-        pk = serde::deserialize<eig::public_key>(serde::parse_file<rapidjson::Document>(key_cache));
+        pk = serde::deserialize<eig::public_key>(serde::parse_file<nlohmann::json>(key_cache));
     } else {
         pk = eig::public_key(2048);
         std::ofstream fs(key_cache);
@@ -101,7 +120,6 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
 
     auto xi = eig::random_r(q);
     sk = eig::secret_key(pk, xi);
-
     Y = yi = g.exp(xi, p);
 
     log("broadcast yi");
@@ -142,7 +160,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         a_alpha_n.push_back(append_bytes(buf, alphai));
         //std::transform(al.begin(), al.end(), buf.begin(), al.begin(), std::bit_xor<uint8_t>());
     }
-    
+
     std::vector<cipher> datas;
     for(auto& a_alpha : a_alpha_n) {
         Bn si, ti, bi = eig::random_r(p);
@@ -168,8 +186,8 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     int i = 1;
     for(auto& key : keys) { 
         send_one proto;
-        if(!J.empty() && key == J.top()) { J.pop(); proto.check = true;}
-        else                             { proto.check = false; }
+        if(!J.empty() && key == J.top()) { J.pop(); proto.check = true ; }
+        else                             {          proto.check = false; }
         net.send_to(encode(proto), key); // brodcast
         if(proto.check) { net.send_to(encode(datas[i++]), key); }
     }
@@ -207,10 +225,9 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
 
         fmt::print("{}<-[{}]\n", shuffle_set.size(), net.prev());
         for(auto& [u ,v] : shuffle_set) {
-            v = v.mul(u.inv(p).exp(xi,p), p);
+            v = v.mul(u.exp(xi,p).inv(p), p);
         }
     }
-
     net.send_all(encode(shuffle_set));
     for(auto& f : net.receive_all()) {
         f.wait();
@@ -219,11 +236,11 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     }
 
     for(auto& [_u ,shf] : shuffle_set) {
-        auto [data, id] = split_bytes(shf.to_bytes(), 236);
-        fmt::print("- shf: {}\n", serde::to_string(shf));
+        auto [ai, alpha] = split_bytes(shf.to_bytes(), 236);
+        print_bytes(ai); print_bytes(alpha);
         for(auto& a_alpha : a_alpha_n) {
+            print_bytes(a_alpha);
             auto bn = Bn(a_alpha);
-            fmt::print("- a_alpha: {}\n", serde::to_string(bn));
             if(shf == bn) fmt::print("find\n");
         }
         fmt::print("----\n");
@@ -271,9 +288,10 @@ int main(int argc, char *argv[])
         }
     } catch(const spdlog::spdlog_ex& ex) {
         std::cout << "Log init failed: " << ex.what() << std::endl;
-    } catch(const std::exception& ex){
-        fmt::print("finish\n");
     }
+    //catch(const std::exception& ex){
+    //    fmt::print("finish: {}\n",ex.what());
+    //}
     
 
     

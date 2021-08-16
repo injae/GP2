@@ -10,7 +10,7 @@ cppm_cxx_standard(17)
 cppm_compiler_option(DEFAULT)
 
 include(cmake/OpenSSLEnv.cmake)
-find_cppkg(serdepp 0.1.0  MODULE serdepp::serdepp TYPE lib)
+find_cppkg(serdepp 0.1.1  MODULE serdepp::serdepp TYPE lib)
 find_cppkg(RapidJSON 1.1.1  MODULE rapidjson TYPE lib)
 find_cppkg(spdlog 1.8.2  MODULE spdlog::spdlog TYPE lib)
 find_cppkg(nlohmann_json 3.9.1  MODULE nlohmann_json::nlohmann_json TYPE lib)

@@ -1,5 +1,6 @@
 # 코드 설명
-- 구현 로직은는 net.cpp에존재
+- 구현1 로직은는 net.cpp에존재
+- 구현2 로직은는 net2.cpp에존재
 - node들의 타입은 head_node , node로 2가지로 정의된다.
 - head_node를 기준으로 네트워크에 참여하는 로직이다.
 - net.cpp 파일의 head_node함수가 head_node의 코드이고 node가 서버에 join하는 node들의 코드이다.
@@ -22,7 +23,7 @@ cmake -DUSE_CPPM_PATH=ON -DCMAKE_BUILD_TYPE=Release .. && cmake --build . --conf
 # result -> build/Release/net
 ```
 
-# Running Script
+# 구현1 Running Script
 ```shell
 # example 3node
 # if head node
@@ -41,6 +42,28 @@ end   # wait other nodes
 
 # log file (path: build/Release/logs/*)
 ```
+
 # 테스트
 - 테스트 환경: Macbook 2019 16인치 고급형
 - node3: [prev -> next(0.001s), head -> node... -> head (0.024s), success time(0.055s)]
+
+# 구현2 Running Script
+```shell
+# example 3node
+# if head node
+# net {current port} {head port}
+# terminal 1 (pwd: build/Release)
+./net2 1111 1111 "message"
+
+# terminal 2 (pwd: project root)
+# test_script {head port} {nodes count}
+./net2 1112 1111 "message2"
+
+# terminal 3 (pwd: project root)
+# test_script {head port} {nodes count}
+./net2 1113 1111 "message3"
+
+# terminal 1
+start # process start
+# log file (path: build/Release/logs/*)
+
