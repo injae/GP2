@@ -67,7 +67,7 @@ std::vector<u_int8_t> expand_bytes(std::vector<u_int8_t> data, size_t length) {
 }
 
 
-void print_bytes(std::vector<uint8_t>& vec) {
+void print_bytes(std::vector<uint8_t> vec) {
     for(auto& it : vec) { fmt::print("{},",it);}
     fmt::print("\n==\n");
 }
@@ -81,9 +81,14 @@ std::vector<u_int8_t> append_bytes(T& a, T2& b) {
     return buffer;
 }
 
+constexpr std::size_t p_len = 2048;                             //! modulus size
+constexpr std::size_t tag_len = 160;                            //! hash output size
+constexpr std::size_t msg_len = p_len / 2 - tag_len;            //! message length in bits
+constexpr std::size_t msg_len_bytes = msg_len / 8;              //! message length in bytes
+
 template<typename T>
 std::pair<std::vector<u_int8_t>, std::vector<u_int8_t>> split_bytes(T&& vec, size_t point) {
-    std::vector<uint8_t> first = vec, second(vec.begin()+236, vec.end());
+    std::vector<uint8_t> first = vec, second(vec.begin()+msg_len_bytes, vec.end());
     first.erase(first.begin()+point, first.end());
     return {first, second}; 
 }
@@ -96,12 +101,6 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         logger->info("[{}]:{}\n",net.port(), fmt);
         logger->flush();
     };
-
-    const std::size_t p_len = 2048;                             //! modulus size
-                                                                //! => working group size = 2048 / 2 = 1024 
-    const std::size_t tag_len = 160;                            //! hash output size
-    const std::size_t msg_len = p_len / 2 - tag_len;            //! message length in bits
-    const std::size_t msg_len_bytes = msg_len / 8;              //! message length in bytes
 
     Bn Wi(message);
 
@@ -139,7 +138,6 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     }
 
     log("#Step 2");
-    // assert(Wi.bit_size() <= 1888);//< 236 /*1888bit*/);
     assert(Wi.bit_size() <= msg_len);   //! |Wi| <= 1024 - 160 = 864
 
     auto n = net.size()+1;
@@ -147,17 +145,14 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     log("l = {} = log{}"_format(l, n));
 
     log("Gen A");
-    // auto wi = expand_bytes(Wi.to_bytes(), 236);
     auto wi = expand_bytes(Wi.to_bytes(), msg_len_bytes);
     assert(Wi == Bn(wi));
 
     std::vector<std::vector<uint8_t>> a_alpha_n;
-    // std::vector<uint8_t> al(236,0);
     std::vector<uint8_t> al(msg_len_bytes, 0);
     auto alpha_size = l-1;
     auto range = wi.size() / alpha_size;
     auto remain = wi.size() % alpha_size; 
-    // auto alphai = sha1::hash(eig::rand0om_r(p).to_hex());
     auto alphai = sha1::hash(eig::random_r(q).to_hex());
 
     for(int i = 0; i < alpha_size; ++i) {
@@ -168,26 +163,24 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
                 auto idx = (i+1)*range+j; buf[idx] = wi[idx];
             }
         }
-        a_alpha_n.push_back(append_bytes(buf, alphai));
+        a_alpha_n.push_back(append_bytes(buf, alphai)); // <== a_alpha = (ai||alpha)
         //std::transform(al.begin(), al.end(), buf.begin(), al.begin(), std::bit_xor<uint8_t>());
     }
 
     std::vector<cipher> datas;
     for(auto& a_alpha : a_alpha_n) {
-        // Bn si, ti, bi = eig::random_r(p);
         Bn si, ti, bi = eig::random_r(q);
         cipher cipher;
-
         cipher.s = g.exp(bi, p);                        //! g^{\beta_i}
         cipher.t = Bn(a_alpha).mul(Y.exp(bi, p),p);     //! (a||\alpha_i)*Y^{\beta_i}
         datas.emplace_back(cipher);
     }
 
+    log("#Step3");
     std::vector<std::string> keys;
     for(auto& [key, _] : net.sessions()) { keys.push_back(key); }
     sort(keys);
 
-    log("#Step3");
     std::random_device rd;
     std::uniform_int_distribution<int> rand_gen(0, keys.size()-1);
 
@@ -222,7 +215,6 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     std::sort(shuffle_set.begin(), shuffle_set.end());
 
     log("#Step3.4");
-    // auto gamma = eig::random_r(p);
     auto gamma = eig::random_r(q);              //! \gamma_i
     for(auto& [u ,v] : shuffle_set) {
         u = u.mul(g.exp(gamma, p), p);          //! u*g^{\gamma_i}
@@ -239,7 +231,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
 
         fmt::print("{}<-[{}]\n", shuffle_set.size(), net.prev());
         for(auto& [u ,v] : shuffle_set) {
-            v = v.mul(u.exp(xi,p).inv(p), p);
+            v = v.mul(u.inv(p).exp(xi,p), p);
         }
     }
     net.send_all(encode(shuffle_set));
@@ -249,15 +241,16 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         shuffle_set.insert(shuffle_set.end(), buf.begin(), buf.end());
     }
 
-    for(auto& [_u ,shf] : shuffle_set) {
-        auto [ai, alpha] = split_bytes(shf.to_bytes(), 236);
-        print_bytes(ai); print_bytes(alpha);
-        for(auto& a_alpha : a_alpha_n) {
-            print_bytes(a_alpha);
-            auto bn = Bn(a_alpha);
+    for(auto& a_alpha : a_alpha_n) {
+        print_bytes(a_alpha);
+        auto bn = Bn(a_alpha);
+        for(auto& [_u ,shf] : shuffle_set) {
+            auto [ai, alpha] = split_bytes(shf.to_bytes(), msg_len_bytes);
+            print_bytes(shf.to_bytes());
+            //print_bytes(ai); print_bytes(alpha);
+            fmt::print("----\n");
             if(shf == bn) fmt::print("find\n");
         }
-        fmt::print("----\n");
     }
 
     fmt::print("Result: {}\n",shuffle_set.size());
