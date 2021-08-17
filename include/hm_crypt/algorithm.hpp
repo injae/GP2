@@ -23,6 +23,10 @@ namespace hmc::util {
             safe_prime primes;
             primes.p.random_safe_prime_inplace(bits);
             primes.q = primes.p.sub(Bn::one()).rshift_one();
+            //! confirmation of primality
+            assert(true == primes.p.is_prime());
+            assert(true == primes.q.is_prime());
+
             return primes;
         }
     };

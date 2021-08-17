@@ -18,7 +18,9 @@ namespace hmc::eig {
         };
     }
 
-    inline Bn random_r(const Bn& g) { return util::random(g.sub(Bn::one()), [](auto& r){ return Bn::one() < r; }); }
+    // inline Bn random_r(const Bn& g) { return util::random(g.sub(Bn::one()), [](auto& r){ return Bn::one() < r; }); }
+    //! g ==> q
+    inline Bn random_r(const Bn& q) { return util::random(q.sub(Bn::one()), [](auto& r){ return Bn::one() < r; }); }
 
     struct cipher {
         DERIVE_SERDE(cipher,(&Self::u, "u")(&Self::v, "v"))

@@ -97,6 +97,12 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         logger->flush();
     };
 
+    const std::size_t p_len = 2048;                             //! modulus size
+                                                                //! => working group size = 2048 / 2 = 1024 
+    const std::size_t tag_len = 160;                            //! hash output size
+    const std::size_t msg_len = p_len / 2 - tag_len;            //! message length in bits
+    const std::size_t msg_len_bytes = msg_len / 8;              //! message length in bytes
+
     Bn Wi(message);
 
     fmt::print("== network setting end ==\n");
@@ -109,7 +115,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     if(std::filesystem::exists(key_cache)) {
         pk = serde::deserialize<eig::public_key>(serde::parse_file<nlohmann::json>(key_cache));
     } else {
-        pk = eig::public_key(2048);
+        pk = eig::public_key(p_len);
         std::ofstream fs(key_cache);
         fs << serde::serialize<nlohmann::json>(pk).dump();
         fs.close();
@@ -118,7 +124,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
 
     auto& [p, q, g, Y, yi] = pk;
 
-    auto xi = eig::random_r(q);
+    auto xi = eig::random_r(q);     //! 1 < xi < q - 1
     sk = eig::secret_key(pk, xi);
     Y = yi = g.exp(xi, p);
 
@@ -133,21 +139,26 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     }
 
     log("#Step 2");
-    assert(Wi.bit_size() <= 1888);//< 236 /*1888bit*/);
+    // assert(Wi.bit_size() <= 1888);//< 236 /*1888bit*/);
+    assert(Wi.bit_size() <= msg_len);   //! |Wi| <= 1024 - 160 = 864
+
     auto n = net.size()+1;
     auto l = static_cast<size_t>(std::log(n)); if(l < 3) l = 3;
     log("l = {} = log{}"_format(l, n));
 
     log("Gen A");
-    auto wi = expand_bytes(Wi.to_bytes(), 236);
+    // auto wi = expand_bytes(Wi.to_bytes(), 236);
+    auto wi = expand_bytes(Wi.to_bytes(), msg_len_bytes);
     assert(Wi == Bn(wi));
 
     std::vector<std::vector<uint8_t>> a_alpha_n;
-    std::vector<uint8_t> al(236,0);
+    // std::vector<uint8_t> al(236,0);
+    std::vector<uint8_t> al(msg_len_bytes, 0);
     auto alpha_size = l-1;
     auto range = wi.size() / alpha_size;
     auto remain = wi.size() % alpha_size; 
-    auto alphai = sha1::hash(eig::random_r(p).to_hex());
+    // auto alphai = sha1::hash(eig::rand0om_r(p).to_hex());
+    auto alphai = sha1::hash(eig::random_r(q).to_hex());
 
     for(int i = 0; i < alpha_size; ++i) {
         std::vector<uint8_t> buf(wi.size(), 0);
@@ -163,10 +174,12 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
 
     std::vector<cipher> datas;
     for(auto& a_alpha : a_alpha_n) {
-        Bn si, ti, bi = eig::random_r(p);
+        // Bn si, ti, bi = eig::random_r(p);
+        Bn si, ti, bi = eig::random_r(q);
         cipher cipher;
-        cipher.s = g.exp(bi, p);
-        cipher.t = Bn(a_alpha).mul(Y.exp(bi, p),p);
+
+        cipher.s = g.exp(bi, p);                        //! g^{\beta_i}
+        cipher.t = Bn(a_alpha).mul(Y.exp(bi, p),p);     //! (a||\alpha_i)*Y^{\beta_i}
         datas.emplace_back(cipher);
     }
 
@@ -209,10 +222,11 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     std::sort(shuffle_set.begin(), shuffle_set.end());
 
     log("#Step3.4");
-    auto gamma = eig::random_r(p);
+    // auto gamma = eig::random_r(p);
+    auto gamma = eig::random_r(q);              //! \gamma_i
     for(auto& [u ,v] : shuffle_set) {
-        u = u.mul(g.exp(gamma, p), p);
-        v = v.mul(Y.exp(gamma, p), p);
+        u = u.mul(g.exp(gamma, p), p);          //! u*g^{\gamma_i}
+        v = v.mul(Y.exp(gamma, p), p);          //! v*Y^{\gamma_i}
     }
 
     log("#Step5");

@@ -5,9 +5,9 @@ namespace hmc::eig {
     namespace detail {
         seed_key::seed_key(int bits) {
             auto [_p, _q] = util::safe_prime::generate(bits);
-            p = _p;
-            q = _q;
-            g = util::find_generator(p, q);
+            p = _p;                         //! modulus
+            q = _q;                         //! subgroup order
+            g = util::find_generator(p, q); //! subgroup generator of order q
         }
     }
 
