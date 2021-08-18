@@ -90,6 +90,10 @@ namespace ssl {
         void to_bytes(uint8_t* bytes, int* len) const;
         std::vector<uint8_t> to_bytes();
 
+        //! bitwise xor
+        BN   _xor(const BN& x) const;
+        void _xorInplace(const BN& x);
+
     private:
         BN_CTX* ctx_;       ///< context
         BIGNUM* ptr_;       ///< pointer to the big number 

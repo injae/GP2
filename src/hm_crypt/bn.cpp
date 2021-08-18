@@ -382,6 +382,93 @@ namespace ssl {
         Bn rem;
         BN_div(div.ptr_, rem.ptr_, this->ptr_, x.ptr_, ctx_);
         return div;
-    }             
+    }        
+
+    BN
+    BN::_xor(const BN& x) const
+    {
+        BN res;
+        std::uint8_t* l_buff = 0; //! left op
+        std::uint8_t* r_buff = 0; //! right op
+        std::uint8_t* o_buff = 0; //! output
+        int l_len = 0, r_len = 0, o_len = 0;
+        std::uint16_t current = 0;
+
+        l_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
+        r_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
+        o_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
+
+        this->_bn2byte(l_buff, (int *)&l_len);
+        x._bn2byte(r_buff, (int *)&r_len);
+
+        //! in big endian
+        o_len = (l_len < r_len) ? r_len : l_len;
+        current = o_len;
+        while (l_len > 0 && r_len > 0) {
+            o_buff[--current] = l_buff[--l_len] ^ r_buff[--r_len];
+        }
+        if (r_len > 0) {
+            while (r_len >= 0) {
+                current = (--r_len);
+                o_buff[current] = r_buff[current];
+            }
+        }
+        else if (l_len > 0) {
+            while (l_len >= 0) {
+                current = (--l_len);
+                o_buff[current] = l_buff[current];
+            }
+        }
+        res._byte2bn(o_buff, o_len);
+
+        //! trash
+        delete[] l_buff; delete[] r_buff; delete[] o_buff;
+        l_buff = 0; r_buff = 0; o_buff = 0;
+
+        return res;
+    }
+
+    void 
+    BN::_xorInplace(const BN& x)
+    {
+        std::uint8_t* l_buff = 0; //! left op
+        std::uint8_t* r_buff = 0; //! right op
+        std::uint8_t* o_buff = 0; //! output
+        std:size_t l_len = 0, r_len = 0, o_len = 0;
+        std::uint16_t current = 0;
+
+        l_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
+        r_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
+        o_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
+
+        this->_bn2byte(l_buff, (int *)&l_len);
+        x._bn2byte(r_buff, (int *)&r_len);
+
+        //! in big endian
+        o_len = (l_len < r_len) ? r_len : l_len;
+        current = o_len;
+        while (l_len > 0 && r_len > 0) {
+            o_buff[--current] = l_buff[--l_len] ^ r_buff[--r_len];
+        }
+        if (r_len > 0) {
+            while (r_len >= 0) {
+                current = (--r_len);
+                o_buff[current] = r_buff[current];
+            }
+        }
+        else if (l_len > 0) {
+            while (l_len >= 0) {
+                current = (--l_len);
+                o_buff[current] = l_buff[current];
+            }
+        }
+        this->_byte2bn(o_buff, o_len);
+
+        //! trash
+        delete[] l_buff; delete[] r_buff; delete[] o_buff;
+        l_buff = 0; r_buff = 0; o_buff = 0;
+
+        return;
+    }     
 
 }
