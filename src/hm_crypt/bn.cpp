@@ -387,12 +387,12 @@ namespace ssl {
     BN
     BN::_xor(const BN& x) const
     {
-        BN res;
+        BN            res;
         std::uint8_t* l_buff = 0; //! left op
         std::uint8_t* r_buff = 0; //! right op
         std::uint8_t* o_buff = 0; //! output
-        int l_len = 0, r_len = 0, o_len = 0;
-        std::uint16_t current = 0;
+        int           l_len = 0, r_len = 0, o_len = 0;
+        int           current = 0;
 
         l_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
         r_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
@@ -434,8 +434,8 @@ namespace ssl {
         std::uint8_t* l_buff = 0; //! left op
         std::uint8_t* r_buff = 0; //! right op
         std::uint8_t* o_buff = 0; //! output
-        std:size_t l_len = 0, r_len = 0, o_len = 0;
-        std::uint16_t current = 0;
+        int           l_len = 0, r_len = 0, o_len = 0;
+        int           current = 0;
 
         l_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
         r_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
