@@ -384,10 +384,13 @@ namespace ssl {
         return div;
     }        
 
-    BN
-    BN::_xor(const BN& x) const
+    /**
+     * @brief       XOR for bignum
+     */
+    Bn
+    Bn::_xor(const Bn& x) const
     {
-        BN            res;
+        Bn            res;
         std::uint8_t* l_buff = 0; //! left op
         std::uint8_t* r_buff = 0; //! right op
         std::uint8_t* o_buff = 0; //! output
@@ -398,8 +401,8 @@ namespace ssl {
         r_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
         o_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
 
-        this->_bn2byte(l_buff, (int *)&l_len);
-        x._bn2byte(r_buff, (int *)&r_len);
+        this->to_bytes(l_buff, (int *)&l_len);
+        x.to_bytes(r_buff, (int *)&r_len);
 
         //! in big endian
         o_len = (l_len < r_len) ? r_len : l_len;
@@ -419,7 +422,7 @@ namespace ssl {
                 o_buff[current] = l_buff[current];
             }
         }
-        res._byte2bn(o_buff, o_len);
+        res.from_bytes(o_buff, o_len);
 
         //! trash
         delete[] l_buff; delete[] r_buff; delete[] o_buff;
@@ -429,7 +432,7 @@ namespace ssl {
     }
 
     void 
-    BN::_xorInplace(const BN& x)
+    Bn::_xorInplace(const Bn& x)
     {
         std::uint8_t* l_buff = 0; //! left op
         std::uint8_t* r_buff = 0; //! right op
@@ -441,8 +444,8 @@ namespace ssl {
         r_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
         o_buff = new std::uint8_t[sizeof(std::uint8_t) * max_buffer_size__]();
 
-        this->_bn2byte(l_buff, (int *)&l_len);
-        x._bn2byte(r_buff, (int *)&r_len);
+        this->to_bytes(l_buff, (int *)&l_len);
+        x.to_bytes(r_buff, (int *)&r_len);
 
         //! in big endian
         o_len = (l_len < r_len) ? r_len : l_len;
@@ -462,7 +465,7 @@ namespace ssl {
                 o_buff[current] = l_buff[current];
             }
         }
-        this->_byte2bn(o_buff, o_len);
+        this->from_bytes(o_buff, o_len);
 
         //! trash
         delete[] l_buff; delete[] r_buff; delete[] o_buff;

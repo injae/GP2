@@ -18,6 +18,8 @@ using namespace ssl;
 using namespace simnet::ring;
 using namespace ranges;
 
+#define __debug
+
 struct cipher {
     DERIVE_SERDE(cipher,(&Self::s, "s")(&Self::t, "t"))
     Bn s;
@@ -148,12 +150,12 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     auto wi = expand_bytes(Wi.to_bytes(), msg_len_bytes);
     assert(Wi == Bn(wi));
 
-    std::vector<std::vector<uint8_t>> a_alpha_n;
+
+#if false
     std::vector<uint8_t> al(msg_len_bytes, 0);
     auto alpha_size = l-1;
     auto range = wi.size() / alpha_size;
     auto remain = wi.size() % alpha_size; 
-    auto alphai = sha1::hash(eig::random_r(q).to_hex());
 
     for(int i = 0; i < alpha_size; ++i) {
         std::vector<uint8_t> buf(wi.size(), 0);
@@ -165,6 +167,35 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         }
         a_alpha_n.push_back(append_bytes(buf, alphai)); // <== a_alpha = (ai||alpha)
         //std::transform(al.begin(), al.end(), buf.begin(), al.begin(), std::bit_xor<uint8_t>());
+    }
+#endif
+    std::vector<std::vector<uint8_t>> a_alpha_n;
+    auto alphai = sha1::hash(eig::random_r(q).to_hex());    //! alpha_i
+    ssl::Bn a_l(0);
+    std::vector<ssl::Bn> vec_ai(l, Bn::zero());             //! (a_1,a_2,...,a_l)
+
+    //! secret sharings
+    for (int i = 0; i < l - 1; i++) {
+        ssl::Bn a_i;     
+
+        a_i.random_inplace(msg_len);                                   
+        vec_ai.emplace_back(a_i);                           //! (a_1,a_2,...)
+        a_l = a_l._xor(a_i);                                //! a_l = a_1+a_2+...+a_{l-1}
+    }
+#ifdef __debug
+    ssl::Bn t = a_l;
+#endif
+    a_l = a_l._xor(Wi);                                     //! a_l = a_l+w_i = a_1+...+a_{l-1}+w_i
+#ifdef __debug
+    t = t._xor(a_l);
+    assert(t == Wi);
+#endif                                
+    vec_ai.emplace_back(a_l);
+    for (int i = 0; i < l; i++) {
+        std::vector<uint8_t> buf(msg_len_bytes, 0);
+        buf = vec_ai[i].to_bytes();                                                    
+        //! a_alpha = (ai||alpha)
+        a_alpha_n.push_back(append_bytes(buf, alphai)); 
     }
 
     std::vector<cipher> datas;

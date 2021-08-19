@@ -91,12 +91,14 @@ namespace ssl {
         std::vector<uint8_t> to_bytes();
 
         //! bitwise xor
-        BN   _xor(const BN& x) const;
-        void _xorInplace(const BN& x);
+        Bn   _xor(const Bn& x) const;
+        void _xorInplace(const Bn& x);
 
     private:
         BN_CTX* ctx_;       ///< context
         BIGNUM* ptr_;       ///< pointer to the big number 
+
+        const std::size_t max_buffer_size__ = 1000;
     };
 }
 
