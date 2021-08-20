@@ -92,7 +92,8 @@ namespace ssl {
 
         //! bitwise xor
         Bn   _xor(const Bn& x) const;
-        void _xorInplace(const Bn& x);
+        Bn operator^(const Bn& x);                       ///< this <- rhs
+        void xorInplace(const Bn& x);
 
     private:
         BN_CTX* ctx_;       ///< context

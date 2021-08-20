@@ -42,6 +42,7 @@ namespace hmc::eig {
     };
 
     struct secret_key {
+        DERIVE_SERDE(secret_key, (&Self::p, "p")(&Self::q, "q")(&Self::g, "g")(&Self::x, "x"))
         Bn p;
         Bn q;
         Bn g;

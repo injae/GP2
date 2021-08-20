@@ -387,8 +387,7 @@ namespace ssl {
     /**
      * @brief       XOR for bignum
      */
-    Bn
-    Bn::_xor(const Bn& x) const
+    Bn Bn::_xor(const Bn& x) const
     {
         Bn            res;
         std::uint8_t* l_buff = 0; //! left op
@@ -431,8 +430,9 @@ namespace ssl {
         return res;
     }
 
-    void 
-    Bn::_xorInplace(const Bn& x)
+    Bn Bn::operator^(const Bn& rhs) { return this->_xor(rhs); }
+
+    void Bn::xorInplace(const Bn& x)
     {
         std::uint8_t* l_buff = 0; //! left op
         std::uint8_t* r_buff = 0; //! right op
