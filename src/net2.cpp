@@ -70,7 +70,8 @@ std::vector<u_int8_t> expand_bytes(std::vector<u_int8_t> data, size_t length) {
 
 
 void print_bytes(std::vector<uint8_t> vec) {
-    for(auto& it : vec) { fmt::print("{},",it);}
+    // for(auto& it : vec) { fmt::print("{},",it);}
+    for(auto& it : vec) { fmt::print("{0:x}",it);}
     fmt::print("\n==\n");
 }
 
@@ -92,6 +93,10 @@ template<typename T>
 std::pair<std::vector<u_int8_t>, std::vector<u_int8_t>> split_bytes(T&& vec, size_t point) {
     std::vector<uint8_t> first = vec, second(vec.begin()+msg_len_bytes, vec.end());
     first.erase(first.begin()+point, first.end());
+#ifdef __debug
+    std::cout << "Splitting:a_i = "; print_bytes(first);
+    std::cout << "Splitting: alpha_i = "; print_bytes(second);
+#endif
     return {first, second}; 
 }
 
@@ -105,6 +110,10 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     };
 
     Bn Wi(message);
+#ifdef __debug
+    std::cout << "original message: ";
+    print_bytes(Wi.to_bytes());
+#endif
 
     fmt::print("== network setting end ==\n");
     fmt::print("info: head:{}, next:{}, port:{}, prev:{}\n",net.head(), net.next(), net.port(), net.prev());
@@ -172,15 +181,33 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     std::vector<std::vector<uint8_t>> a_alpha_n;
     auto alphai = sha1::hash(eig::random_r(q).to_hex());    //! alpha_i
     ssl::Bn a_l(0);
-    std::vector<ssl::Bn> vec_ai(l, Bn::zero());             //! (a_1,a_2,...,a_l)
+    std::vector<ssl::Bn> vec_ai;                            //! (a_1,a_2,...,a_l)
+    vec_ai.resize(l);
+
+#ifdef __debug
+    assert(tag_len / 8 == sizeof(alphai) * sizeof(unsigned char));
+    std::string str;
+    for (int i = 0 ; i < tag_len / 8; i++) {
+        char alpha_i[10] = {0};
+        sprintf(alpha_i, "%02x", alphai[i]);
+        str += std::string(alpha_i);
+    }
+    std::cout << "alpha_i: " << str << std::endl;
+#endif
 
     //! secret sharings
     for (int i = 0; i < l - 1; i++) {
         ssl::Bn a_i;     
 
         a_i.random_inplace(msg_len);                                   
-        vec_ai.emplace_back(a_i);                           //! (a_1,a_2,...)
+        vec_ai[i] = a_i;                                    //! (a_1,a_2,...)
         a_l = a_l._xor(a_i);                                //! a_l = a_1+a_2+...+a_{l-1}
+#ifdef _debug
+        std::cout << "random a_" << i << ": ";
+        print_bytes(a_l.to_bytes());
+        std::cout << "\nvec_ai[" << i << "]:";
+        print_bytes(vec_ai[i].to_bytes());
+#endif
     }
 #ifdef __debug
     ssl::Bn t = a_l;
@@ -189,14 +216,27 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
 #ifdef __debug
     t = t._xor(a_l);
     assert(t == Wi);
-#endif                                
-    vec_ai.emplace_back(a_l);
+#endif   
+    vec_ai[l-1] = a_l;    
+#ifdef _debug
+    std::cout << "After packing all a_i||alpha_i\n";
+    for (int i = 0; i < l; i++) {
+        std::cout << "vec_ai[" << i << "]: ";
+        print_bytes(vec_ai[i].to_bytes());
+    }    
+#endif                                            
     for (int i = 0; i < l; i++) {
         std::vector<uint8_t> buf(msg_len_bytes, 0);
-        buf = vec_ai[i].to_bytes();                                                    
+        buf = vec_ai[i].to_bytes();        
         //! a_alpha = (ai||alpha)
         a_alpha_n.push_back(append_bytes(buf, alphai)); 
     }
+#ifdef _debug
+    std::cout << "vector of a_i||alpha_i:" << std::endl;
+    for (auto a: a_alpha_n) {
+        print_bytes(a);
+    }
+#endif
 
     std::vector<cipher> datas;
     for(auto& a_alpha : a_alpha_n) {
@@ -273,13 +313,22 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     }
 
     for(auto& a_alpha : a_alpha_n) {
+#ifdef _debug
+        std::cout << "original a_alpha: ";
         print_bytes(a_alpha);
+#endif
         auto bn = Bn(a_alpha);
         for(auto& [_u ,shf] : shuffle_set) {
             auto [ai, alpha] = split_bytes(shf.to_bytes(), msg_len_bytes);
-            print_bytes(shf.to_bytes());
-            //print_bytes(ai); print_bytes(alpha);
+            // print_bytes(shf.to_bytes());
+            //print_bytes(ai); 
+    #ifdef __debug
+            std::cout << "splitted a_i: ";
+            print_bytes(ai);
+            std::cout << "splitted alpha: ";
+            print_bytes(alpha);
             fmt::print("----\n");
+    #endif
             if(shf == bn) fmt::print("find\n");
         }
     }
