@@ -6,6 +6,8 @@
 #include "hm_crypt/bn.hpp"
 #include <functional>
 
+#define __debug
+
 namespace hmc::util {
     using namespace ssl;
     inline Bn random(const Bn& q, std::function<bool(const Bn&)>&& condition) {
@@ -27,6 +29,17 @@ namespace hmc::util {
             assert(true == primes.p.is_prime());
             assert(true == primes.q.is_prime());
 
+#ifdef __debug
+            printf("modulus p of %d-bit: ", primes.p.bit_size());
+            for (int i = 0; i < primes.p.byte_size(); i++) {
+                printf("%02x", primes.p.to_bytes()[i]);
+            }
+            printf("\nsubgroup order q of %d-bit: ", primes.q.bit_size());
+            for (int i = 0; i < primes.q.byte_size(); i++) {
+                printf("%02x", primes.q.to_bytes()[i]);
+            }
+            printf("\n");
+#endif
             return primes;
         }
     };

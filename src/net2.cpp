@@ -73,7 +73,7 @@ std::vector<u_int8_t> expand_bytes(std::vector<u_int8_t> data, size_t length) {
 
 void print_bytes(const std::string& tag, std::vector<uint8_t> vec) {
     fmt::print("{}: ",tag);
-    for(auto& it : vec) { fmt::print("{}, ", it); }
+    for(auto& it : vec) { fmt::print("{0:x}", it); }
     fmt::print("\n==\n");
 }
 
@@ -138,13 +138,29 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     log("#Step 1");
 
     auto& [p, q, g, Y, yi] = pk;
+#ifdef __debug
+    print_bytes("p:", p.to_bytes()); std::cout << "p's size: " << p.byte_size() << std::endl;
+    print_bytes("q:", q.to_bytes()); std::cout << "q's size: " << q.byte_size() << std::endl;
+    print_bytes("g:", g.to_bytes()); std::cout << "g's size: " << g.byte_size() << std::endl;
+    assert(Bn(1) != g.mul(g, p));
+    assert(Bn(1) == g.exp(q, p));
+    assert(Bn::one() == g.exp(p.sub(1, p).rshift_one(), p));
+    assert(p == q.lshift_one().add(Bn(1), p));
+    std::cout << "[p, q, g] check: ok" << std::endl;
+#endif
 
     auto xi = eig::random_r(q);     //! 1 < xi < q - 1
     sk = eig::secret_key(pk, xi);
     yi = g.exp(xi, p);
     Y = yi;
-    fmt::print("{}\n",yi.to_dec());
+    // fmt::print("{}\n",yi.to_dec());
 
+#ifdef __debug
+    assert(Bn(1) == yi.mul(g.inv(p).exp(xi, p), p).to_bytes());
+    std::cout << "Check y_i: ok\n";
+#endif
+
+#ifdef _debug
     log("broadcast yi");
     net.send_all(encode(yi));
 
@@ -328,7 +344,8 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     }
 
     log(fmt::format("Result: {}\n",find));
-    
+#endif //_debug
+
     log("Finish");
 }
 
