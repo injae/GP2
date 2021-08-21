@@ -33,6 +33,7 @@ struct send_one {
     std::optional<std::vector<T>> value;
 };
 
+
 template<typename T>
 T decode(const std::string& data) {
     auto json= nlohmann::json::parse(data);
@@ -140,7 +141,8 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
 
     auto xi = eig::random_r(q);     //! 1 < xi < q - 1
     sk = eig::secret_key(pk, xi);
-    Y = yi = g.exp(xi, p);
+    yi = g.exp(xi, p);
+    Y = yi;
     fmt::print("{}\n",yi.to_dec());
 
     log("broadcast yi");
@@ -149,7 +151,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     log("Y <- yi * yi-1 ... y0");
     for(auto& yn_i : net.receive_all()) {
         auto yn = decode<Bn>(wait_get(yn_i));
-        Y.mul_inplace(yn, p);
+        Y = Y.mul(yn, p);
     }
     fmt::print("Y:{}\n",Y.to_dec());
 
@@ -241,6 +243,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         fmt::print("cipher {}\n",cipher);
         datas.emplace_back(cipher);
     }
+
 
     log("#Step3");
     std::vector<std::string> keys;
