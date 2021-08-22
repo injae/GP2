@@ -63,6 +63,7 @@ std::string encode(const T& data) {
 //}
 
 std::vector<u_int8_t> expand_bytes(std::vector<u_int8_t> data, size_t length) {
+    if(data.size() == length) return data;
     std::vector<uint8_t> buffer(length, 0);
     for(auto rit = data.rbegin(), brit = buffer.rbegin(); rit != data.rend(); ++rit, ++brit) {
         *brit = *rit;
@@ -73,10 +74,12 @@ std::vector<u_int8_t> expand_bytes(std::vector<u_int8_t> data, size_t length) {
 
 void print_bytes(const std::string& tag, std::vector<uint8_t> vec) {
     fmt::print("{}: ",tag);
-    for(auto& it : vec) { fmt::print("{0:x}", it); }
+    for(auto& it : vec) { fmt::print("{},", it); }
     fmt::print("\n==\n");
 }
 
+template<typename T>
+inline T wait_get(std::future<T>&& value) { value.wait();  return value.get(); }
 template<typename T>
 inline T wait_get(std::future<T>& value) { value.wait();  return value.get(); }
 
@@ -94,11 +97,6 @@ constexpr std::size_t tag_len = 160;                            //! hash output 
 constexpr std::size_t msg_len = p_len - tag_len;            //! message length in bits
 constexpr std::size_t msg_len_bytes = msg_len / 8;              //! message length in bytes
 
-//constexpr std::size_t p_len = 16;                            //! modulus size
-//constexpr std::size_t tag_len = 8;                           //! hash output size
-//constexpr std::size_t msg_len = p_len - tag_len;         //! message length in bits
-//constexpr std::size_t msg_len_bytes = msg_len / 8;           //! message length in bytes
-
 template<typename T>
 std::pair<std::vector<u_int8_t>, std::vector<u_int8_t>> split_bytes(T&& vec, size_t point) {
     std::vector<uint8_t> first = vec, second(vec.begin()+msg_len_bytes, vec.end());
@@ -110,57 +108,43 @@ std::pair<std::vector<u_int8_t>, std::vector<u_int8_t>> split_bytes(T&& vec, siz
 void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& message) {
     auto log = [&net, logger](const std::string& fmt) {
         using namespace std::chrono;
+        #ifdef DEBUG
         fmt::print("{}\n",fmt);
+        #endif
         logger->info("[{}]:{}\n",net.port(), fmt);
         logger->flush();
     };
 
     Bn Wi(message);
-#ifdef __debug
-    print_bytes("original message: ", Wi.to_bytes());
-#endif
 
-    fmt::print("== network setting end ==\n");
-    fmt::print("info: head:{}, next:{}, port:{}, prev:{}\n",net.head(), net.next(), net.port(), net.prev());
+    log("== network setting end ==\n");
+    log(fmt::format("info: head:{}, next:{}, port:{}, prev:{}\n",net.head(), net.next(), net.port(), net.prev()));
 
-    log("#Key Generate..");
     eig::secret_key sk;
     eig::public_key pk;
-    std::string key_cache ="{}-key.json"_format(net.port());
-    if(std::filesystem::exists(key_cache)) {
-        pk = serde::deserialize<eig::public_key>(serde::parse_file<nlohmann::json>(key_cache));
+    if(net.head() == net.port()) {
+        log("#Key Generate..");
+        std::string key_cache ="{}-key.json"_format(net.port());
+        if(std::filesystem::exists(key_cache)) {
+            pk = serde::deserialize<eig::public_key>(serde::parse_file<nlohmann::json>(key_cache));
+        } else {
+            pk = eig::public_key(p_len);
+            std::ofstream fs(key_cache);
+            fs << serde::serialize<nlohmann::json>(pk).dump();
+            fs.close();
+        }
+        log("#Step 1 key sharing");
+        net.send_all(encode(pk));
     } else {
-        pk = eig::public_key(p_len);
-        std::ofstream fs(key_cache);
-        fs << serde::serialize<nlohmann::json>(pk).dump();
-        fs.close();
+        pk = decode<eig::public_key>(wait_get(net.receive_from(net.head())));
     }
-    log("#Step 1");
 
     auto& [p, q, g, Y, yi] = pk;
-#ifdef __debug
-    print_bytes("p:", p.to_bytes()); std::cout << "p's size: " << p.byte_size() << std::endl;
-    print_bytes("q:", q.to_bytes()); std::cout << "q's size: " << q.byte_size() << std::endl;
-    print_bytes("g:", g.to_bytes()); std::cout << "g's size: " << g.byte_size() << std::endl;
-    assert(Bn(1) != g.mul(g, p));
-    assert(Bn(1) == g.exp(q, p));
-    assert(Bn::one() == g.exp(p.sub(1, p).rshift_one(), p));
-    assert(p == q.lshift_one().add(Bn(1), p));
-    std::cout << "[p, q, g] check: ok" << std::endl;
-#endif
 
     auto xi = eig::random_r(q);     //! 1 < xi < q - 1
     sk = eig::secret_key(pk, xi);
-    yi = g.exp(xi, p);
-    Y = yi;
-    // fmt::print("{}\n",yi.to_dec());
+    Y = yi = g.exp(xi, p);
 
-#ifdef __debug
-    assert(Bn(1) == yi.mul(g.inv(p).exp(xi, p), p).to_bytes());
-    std::cout << "Check y_i: ok\n";
-#endif
-
-#ifdef _debug
     log("broadcast yi");
     net.send_all(encode(yi));
 
@@ -169,7 +153,6 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         auto yn = decode<Bn>(wait_get(yn_i));
         Y = Y.mul(yn, p);
     }
-    fmt::print("Y:{}\n",Y.to_dec());
 
     log("#Step 2");
     assert(Wi.bit_size() <= msg_len);   //! |Wi| <= 1024 - 160 = 864
@@ -181,15 +164,14 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     log("Gen A");
     auto wi = expand_bytes(Wi.to_bytes(), msg_len_bytes);
     assert(Wi == Bn(wi));
-    fmt::print("{}\n",wi);
-    fmt::print("pk: {}\n",pk);
-    fmt::print("sk: {}\n",sk);
 
-#if false
-    std::vector<uint8_t> al(msg_len_bytes, 0);
-    auto alpha_size = l-1;
+    auto alpha_size = l;
     auto range = wi.size() / alpha_size;
     auto remain = wi.size() % alpha_size; 
+
+    std::vector<std::vector<uint8_t>> a_alpha_n;
+    auto alphai_arr = sha1::hash(eig::random_r(q).to_hex());    //! alpha_i
+    std::vector<uint8_t> alphai{std::begin(alphai_arr), std::end(alphai_arr)};
 
     for(int i = 0; i < alpha_size; ++i) {
         std::vector<uint8_t> buf(wi.size(), 0);
@@ -200,63 +182,14 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
             }
         }
         a_alpha_n.push_back(append_bytes(buf, alphai)); // <== a_alpha = (ai||alpha)
-        //std::transform(al.begin(), al.end(), buf.begin(), al.begin(), std::bit_xor<uint8_t>());
     }
-#endif
-    std::vector<std::vector<uint8_t>> a_alpha_n;
-    auto alphai = sha1::hash(eig::random_r(q).to_hex());    //! alpha_i
-
-    ssl::Bn a_l(0);
-    std::vector<ssl::Bn> vec_ai;                            //! (a_1,a_2,...,a_l)
-    vec_ai.resize(l);
-    fmt::print("{}\n",alphai);
-
-#ifdef _debug
-    //assert(tag_len / 8 == sizeof(alphai) * sizeof(unsigned char));
-    std::string str;
-    for (int i = 0 ; i < tag_len / 8; i++) {
-        char alpha_i[10] = {0};
-        sprintf(alpha_i, "%02x", alphai[i]);
-        str += std::string(alpha_i);
-    }
-    std::cout << "alpha_i: " << str << std::endl;
-#endif
-    for (int i = 0; i < l; i++) {
-        vec_ai[i] = std::stoi(net.port());
-    }
-
-    //! secret sharings
-    //for (int i = 0; i <= l - 1; i++) {
-    //    ssl::Bn a_i;     
-    //    a_i.random_inplace(msg_len);                                   
-    //    vec_ai[i] = a_i;                                    //! (a_1,a_2,...)
-    //    a_l = a_l^a_i;                                //! a_l = a_1+a_2+...+a_{l-1}
-    //}
-    //a_l = a_l^Wi;                                     //! a_l = a_l+w_i = a_1+...+a_{l-1}+w_i
-    //vec_ai[l-1] = a_l;    
-
-    //for (int i = 0; i < l; i++) {
-    //    std::vector<uint8_t> buf(msg_len_bytes, 0);
-    //    buf = vec_ai[i].to_bytes();        
-    //    //! a_alpha = (ai||alpha)
-    //    a_alpha_n.push_back(append_bytes(buf, alphai)); 
-    //    fmt::print("a_alpha_i: {},",append_bytes(buf, alphai));
-    //}
-    fmt::print("\n");
-    for(auto it : vec_ai) {
-        a_alpha_n.push_back(it.to_bytes());
-        fmt::print("a_alpha_i: {},",it.to_bytes());
-    }
-    fmt::print("\n");
 
     std::vector<cipher> datas;
     for(auto& a_alpha : a_alpha_n) {
         Bn si, ti, bi = eig::random_r(q);
-        fmt::print("bi:{}\n",bi.to_hex());
         cipher cipher;
         cipher.s = g.exp(bi, p);                        //! g^{\beta_i}
         cipher.t = Bn(a_alpha).mul(Y.exp(bi, p),p);     //! (a||\alpha_i)*Y^{\beta_i}
-        fmt::print("cipher {}\n",cipher);
         datas.emplace_back(cipher);
     }
 
@@ -282,8 +215,6 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         proto.value->push_back(datas[i]);
     }
 
-    fmt::print("send_map: {}\n",send_map);
-
     for (auto &key : keys) { net.send_to(encode(send_map[key]), key); } // brodcast
     log("receive random node");
     std::vector<cipher> shuffle_set;
@@ -293,7 +224,6 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
             shuffle_set.insert(shuffle_set.end(), proto.value->begin(), proto.value->end());
         }
     }
-    fmt::print("uvs: {}\n",shuffle_set);
 
     log("[{}]:l={}"_format(net.port(), shuffle_set.size()));
     log("suffle");
@@ -301,25 +231,20 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
 
     log("#Step3.4");
     auto gamma = eig::random_r(q);              //! \gamma_i
-    fmt::print("gamma: {}\n",gamma.to_dec());
     for(auto& [u ,v] : shuffle_set) {
         u = u.mul(g.exp(gamma, p), p);          //! u*g^{\gamma_i}
         v = v.mul(Y.exp(gamma, p), p);          //! v*Y^{\gamma_i}
-        //fmt::print("u:{},v:{}\n", u.to_dec(), v.to_dec());
     }
 
     log("#Step5");
     for(int i = 0; i <= net.size(); ++i) {
-        fmt::print("{}->[{}]\n", shuffle_set.size(),net.next());
-        //for(auto& [u ,v] : shuffle_set) { fmt::print("u:{},v:{}\n", u.to_dec(), v.to_dec()); }
+        //log(fmt::format("{}->[{}]\n", shuffle_set.size(),net.next()));
         net.send_to(encode(shuffle_set), net.next());
         auto future = net.receive_from(net.prev());
         shuffle_set = decode<std::vector<cipher>>(wait_get(future));
-        fmt::print("{}<-[{}]\n", shuffle_set.size(), net.prev());
+        //log(fmt::format("{}<-[{}]\n", shuffle_set.size(), net.prev()));
         for(auto& [u ,v] : shuffle_set) {
-            //fmt::print("u:{},v:{} -> ", u.to_dec(), v.to_dec());
             v = v.mul(u.inv(p).exp(xi,p), p);
-            //fmt::print("u:{},v:{}\n", u.to_dec(), v.to_dec());
         }
     }
 
@@ -329,22 +254,18 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         shuffle_set.insert(shuffle_set.end(), buf.begin(), buf.end());
     }
 
-    int find=0;
-    for(auto& a_alpha : a_alpha_n) {
-        print_bytes("original a_alpha", Bn(a_alpha).to_bytes());
-        auto bn = Bn(a_alpha);
-        for(auto& [_u ,shf] : shuffle_set) {
-            //auto [ai, alpha] = split_bytes(shf.to_bytes(), msg_len_bytes);
-            print_bytes("shf_a_aplha",shf.to_bytes());
-            //print_bytes("splitted a_i", ai);
-            //print_bytes("splitted alpha",alpha);
-            if(shf == bn) { fmt::print("find\n"); find++; }
-            fmt::print("----\n");
-        }
+    std::vector<std::vector<uint8_t>> ai_s;
+    Bn alphai_bn{alphai};
+    for(auto& [_u ,shf] : shuffle_set) {
+        auto [ai, alpha] = split_bytes(expand_bytes(shf.to_bytes(), p_len/8), msg_len_bytes);
+        if(alphai_bn == Bn(alpha)) { ai_s.push_back(ai); }
     }
 
-    log(fmt::format("Result: {}\n",find));
-#endif //_debug
+    std::vector<uint8_t> al(msg_len_bytes, 0);
+    for(auto& ai : ai_s) {
+        std::transform(al.begin(), al.end(), ai.begin(), al.begin(), std::bit_xor<uint8_t>());
+    }
+    log(fmt::format("message: {}\n", Bn(al).to_string()));
 
     log("Finish");
 }
@@ -361,6 +282,7 @@ void node(Node &net, std::shared_ptr<spdlog::logger> logger, const std::string &
     while(net.is_configure()) {}
     work(net, logger, message);
 }
+
 int main(int argc, char *argv[])
 {
     if(argc < 3) { fmt::print(stderr, "require (server port), (head port)\n"); return -1; }
@@ -371,7 +293,8 @@ int main(int argc, char *argv[])
 
     auto pool = net.configure(server_ip, net.head());
     try {
-        auto logger = spdlog::basic_logger_mt("node-{}"_format(net.port()), "logs/{}-log.txt"_format(net.port()));
+        auto logger = spdlog::basic_logger_mt("node-{}"_format(net.port()), "net2-logs/{}-log.txt"_format(net.port()));
+        logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%n] [%l] %v");
 
         net.is_head() ? head_node(net, logger, message) : node(net, logger, message);
 
@@ -386,11 +309,6 @@ int main(int argc, char *argv[])
     } catch(const spdlog::spdlog_ex& ex) {
         std::cout << "Log init failed: " << ex.what() << std::endl;
     }
-    //catch(const std::exception& ex){
-    //    fmt::print("finish: {}\n",ex.what());
-    //}
-    
-
     
     return 0;
 }

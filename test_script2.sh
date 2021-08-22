@@ -10,5 +10,5 @@ cd build/Release/
 
 for i in $num; do
     node_port=$((head_port+i))
-    ./net $node_port $head_port $node_port &
+    ./net2 $node_port $head_port $node_port & 
 done

@@ -21,45 +21,49 @@ using namespace ranges;
 
 template<typename T>
 T decode(const std::string& data) {
-    rapidjson::Document doc;
-    doc.Parse(data.c_str());
-    return serde::deserialize<T>(doc);
+    auto json= nlohmann::json::parse(data);
+    return serde::deserialize<T>(json);
 }
- template<typename T>
- std::string encode(const T& data) {
-     using namespace rapidjson;
-     auto doc = serde::serialize<rapidjson::Document>(data);
-     StringBuffer buffer;
-     Writer<StringBuffer> writer(buffer);
-     doc.Accept(writer);
-     return buffer.GetString();
- }
+
+template<typename T>
+std::string encode(const T& data) {
+    return serde::serialize<nlohmann::json>(data).dump();
+}
 
 //#define DEBUG_MSG // print log message flag
 
-void head_node(Node& net, std::shared_ptr<spdlog::logger> logger) {
+void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& message) {
     auto log = [&net, logger](const std::string& fmt) {
         using namespace std::chrono;
+        #ifdef DEBUG
         fmt::print("{}\n",fmt);
+        #endif
         logger->info("[{}]:{}\n",net.port(), fmt);
         logger->flush();
     };
     fmt::print("head Node\n");
-    fmt::print("input some text:");
+    fmt::print("input start signal\n");
+    std::cin.get();
+    net.send_all(protocol::config());
+    fmt::print("== network setting end ==\n");
+    fmt::print("info: head:{}, next:{}, port:{}, prev:{}\n",net.head(), net.next(), net.port(), net.prev());
     //std::string Mi = net.port(); // 노드의 메시지
-    std::string Mi; // 노드의 메시지
-    std::cin >> Mi;
+    std::string Mi = message; // 노드의 메시지
 
     eig::public_key pk;
     eig::secret_key sk;
     log("generate pk");
-    pk = eig::public_key(2048);
+    std::string key_cache ="{}-key.json"_format(net.port());
+    if(std::filesystem::exists(key_cache)) {
+        pk = serde::deserialize<eig::public_key>(serde::parse_file<nlohmann::json>(key_cache));
+    } else {
+        pk = eig::public_key(2048);
+        std::ofstream fs(key_cache);
+        fs << serde::serialize<nlohmann::json>(pk).dump();
+        fs.close();
+    }
+
     log("generated pk start system");
-
-    net.send_all(protocol::config());
-
-    fmt::print("== network setting end ==\n");
-    fmt::print("info: head:{}, next:{}, port:{}, prev:{}\n",net.head(), net.next(), net.port(), net.prev());
 
     log("send pk to all");
     net.send_all(encode(pk));
@@ -135,9 +139,12 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger) {
     log("_Mn:{}, finish system"_format(_Mn));
 }
 
-void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
+void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& message) {
     auto log = [&net,logger](const std::string& fmt) {
         using namespace std::chrono;
+        #ifdef DEBUG
+        fmt::print("{}\n",fmt);
+        #endif
         logger->info("[{}]:{}\n",net.port(), fmt);
         logger->flush();
     };
@@ -145,7 +152,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
     while(net.is_configure()) {}
     log("== network setting end ==\n");
     log("info: head:{}, next:{}, port:{}, prev:{}\n"_format(net.head(), net.next(), net.port(), net.prev()));
-    std::string Mi = net.port(); // Node의 메세지
+    std::string Mi = message; // Node의 메세지
 
     eig::public_key pk;
     eig::secret_key sk;
@@ -157,7 +164,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
 
     auto& [p, q, g, Y, yi] = pk;
 
-   auto xi = eig::random_r(q);
+    auto xi = eig::random_r(q);
     sk = eig::secret_key(pk, xi);
     yi = g.exp(xi, p);
     log("spead yi");
@@ -228,26 +235,23 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger) {
     log("_Mn:{}, finish system"_format(_Mn));
 }
 
-void start(const std::string& server_port, const std::string& head_port) {
+void start(const std::string& server_port, const std::string& head_port, const std::string& message) {
     std::string server_ip = "localhost";
     auto net = Node(server_port, head_port);
 
     auto pool = net.configure(server_ip, net.head());
     try {
-        auto logger = spdlog::basic_logger_mt("node-{}"_format(net.port()), "logs/{}-log.txt"_format(net.port()));
+        auto logger = spdlog::basic_logger_mt("node-{}"_format(net.port()), "net-logs/{}-log.txt"_format(net.port()));
+        logger->set_pattern("[%Y-%m-%d %H:%M:%S.%f] [%n] [%l] %v");
 
-        net.is_head() ? head_node(net, logger) : node(net, logger);
-
+        net.is_head() ? head_node(net, logger, message) : node(net, logger, message);
         if(net.is_head()) {
             fmt::print("wait finish all and input test end\n");
-            std::string msg;
-            std::cin >> msg;
-            std::cin.clear();
-            net.send_all("end");
             for(auto&& check : net.receive_all()) { check.wait(); }
+            net.send_all("end");
         } else {
-            net.receive_from(net.head());
             net.send_to("end",net.head());
+            net.receive_from(net.head());
         }
     } catch(const spdlog::spdlog_ex& ex) {
         std::cout << "Log init failed: " << ex.what() << std::endl;
