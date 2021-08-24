@@ -126,16 +126,11 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     using std::chrono::duration;
     using std::chrono::nanoseconds;
 
-    std::ofstream head_runtime, tail_runtime;
+    std::ofstream runtime;
     std::stringstream elapsed_time;
 
     std::string f_name = std::string("our_")+net.port()+std::string("_runtime.txt");
-    if(net.head() == net.port()) {
-        head_runtime.open(f_name, std::ofstream::out);
-    }
-    else {
-        tail_runtime.open(f_name, std::ofstream::out);
-    }
+    runtime.open(f_name, std::ofstream::out);
 #endif
 
     Bn Wi(message);
@@ -183,12 +178,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     auto e_time = high_resolution_clock::now();
     auto r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
     elapsed_time << "KG: " << r_time.count() * 1e-6 << " msec\n";
-    if (net.head() == net.port()) {
-        head_runtime << elapsed_time.str();
-    }
-    else {
-        tail_runtime << elapsed_time.str();
-    }
+    runtime << elapsed_time.str();
 
     s_time = high_resolution_clock::now();
 #endif
@@ -231,7 +221,14 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         cipher.t = Bn(a_alpha).mul(Y.exp(bi, p),p);     //! (a||\alpha_i)*Y^{\beta_i}
         datas.emplace_back(cipher);
     }
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#1(ctime): " << r_time.count() * 1e-6 << " msec\n";
+    runtime << elapsed_time.str();
 
+    s_time = high_resolution_clock::now();
+#endif
 
     log("#Step3");
     std::vector<std::string> keys;
@@ -263,6 +260,14 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
             shuffle_set.insert(shuffle_set.end(), proto.value->begin(), proto.value->end());
         }
     }
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#1(ntime): " << r_time.count() * 1e-6 << " msec\n";
+    runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif    
 
     log("[{}]:l={}"_format(net.port(), shuffle_set.size()));
     log("suffle");
@@ -274,18 +279,46 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         u = u.mul(g.exp(gamma, p), p);          //! u*g^{\gamma_i}
         v = v.mul(Y.exp(gamma, p), p);          //! v*Y^{\gamma_i}
     }
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#2(ctime): " << r_time.count() * 1e-6 << " msec\n";
+    runtime << elapsed_time.str();
+
+    auto c_rtime = std::chrono::high_resolution_clock::duration::zero(),
+         n_rtime = std::chrono::high_resolution_clock::duration::zero();
+#endif    
 
     log("#Step5");
     for(int i = 0; i <= net.size(); ++i) {
+#if (true == __profile_runtime)
+        s_time = high_resolution_clock::now();
+#endif
         //log(fmt::format("{}->[{}]\n", shuffle_set.size(),net.next()));
         net.send_to(encode(shuffle_set), net.next());
         auto future = net.receive_from(net.prev());
         shuffle_set = decode<std::vector<cipher>>(wait_get(future));
         //log(fmt::format("{}<-[{}]\n", shuffle_set.size(), net.prev()));
+#if (true == __profile_runtime)
+        e_time = high_resolution_clock::now();
+        n_rtime += std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    
+        s_time = high_resolution_clock::now();
+#endif
         for(auto& [u ,v] : shuffle_set) {
             v = v.mul(u.inv(p).exp(xi,p), p);
         }
+#if (true == __profile_runtime)
+        e_time = high_resolution_clock::now();
+        c_rtime += std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+#endif
     }
+#if (true == __profile_runtime)
+    elapsed_time << "Step#3(ctime): " << c_rtime.count() * 1e-6 << " msec\n";
+    runtime << elapsed_time.str();
+    elapsed_time << "Step#3(ntime): " << n_rtime.count() * 1e-6 << " msec\n";
+    runtime << elapsed_time.str();
+#endif
 
     net.send_all(encode(shuffle_set));
     for(auto& f : net.receive_all()) {
@@ -307,12 +340,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     log(fmt::format("message: {}\n", Bn(al).to_string()));
 
 #if (true == __profile_runtime)
-    if (net.head() == net.port()) {
-        head_runtime.close();
-    }
-    else {
-        tail_runtime.close();
-    }
+    runtime.close();
 #endif
     log("Finish");
 }
