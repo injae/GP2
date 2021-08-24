@@ -14,6 +14,14 @@
 
 #include <set>
 
+#define __profile_runtime        true
+
+#if (true == __profile_runtime)
+    #include <chrono>
+    #include <fstream>
+    #include <sstream>
+#endif
+
 using namespace simnet::ring;
 using namespace hmc;
 using namespace ssl;
@@ -41,6 +49,19 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
         logger->info("[{}]:{}\n",net.port(), fmt);
         logger->flush();
     };
+#if (true == __profile_runtime)
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::nanoseconds;
+
+    std::ofstream head_runtime;
+    std::stringstream elapsed_time;
+
+    std::string f_name = std::string("cvh_hruntime.txt");
+    head_runtime.open(f_name, std::ofstream::out);
+#endif
+
     fmt::print("head Node\n");
     fmt::print("input start signal\n");
     std::cin.get();
@@ -50,6 +71,9 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
     //std::string Mi = net.port(); // 노드의 메시지
     std::string Mi = message; // 노드의 메시지
 
+#if (true == __profile_runtime)
+    auto s_time = high_resolution_clock::now();
+#endif
     eig::public_key pk;
     eig::secret_key sk;
     log("generate pk");
@@ -84,10 +108,27 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
         Y.mul_inplace(yn, p);
     }
     log("receive yn");
+#if (true == __profile_runtime)
+    auto e_time = high_resolution_clock::now();
+    auto r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "KG: " << r_time.count() * 1e-6 << " msec\n";
+    head_runtime << elapsed_time.str();
+#endif
 
+#if (true == __profile_runtime)
+    s_time = high_resolution_clock::now();
+#endif
     std::vector<eig::cipher> Cn;
     std::set<eig::cipher> _Cn;
     eig::cipher Ci = pk.encrypt(Mi);
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#1(ctime): " << r_time.count() * 1e-6 << " msec\n";
+    head_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif
 
     log("receive Cn all start");
     Cn.push_back(Ci);
@@ -96,6 +137,14 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
         Cn.push_back(decode<eig::cipher>(Cn_packet.get()));
     }
     log("end");
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#1(ntime): " << r_time.count() * 1e-6 << " msec\n";
+    head_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif
 
     for(auto& [ui, vi] : Cn) {
         auto ri = eig::random_r(q);
@@ -103,14 +152,31 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
         auto _vi = vi.mul(Y.exp(ri,p),p);
         _Cn.insert({_ui, _vi});
     }
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#2(ctime): " << r_time.count() * 1e-6 << " msec\n";
+    head_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif
     log("send _Cn next");
     net.send_to(encode(_Cn | to_vector), net.next());
 
-    auto Cn_packet = net.receive_from(net.prev()); Cn_packet.wait();
+    auto Cn_packet = net.receive_from(net.prev()); 
+    Cn_packet.wait();
     log("receive _Cn prev");
     Cn = decode<std::vector<eig::cipher>>(Cn_packet.get());
     log("send Cn all");
     net.send_all(encode(Cn));
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#2(ntime): " << r_time.count() * 1e-6 << " msec\n";
+    head_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif
 
     std::vector<Bn> zn;
     std::vector<Bn> wn;
@@ -119,6 +185,14 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
         zn.push_back(zi);
         wn.push_back(vi.mul(zi, p));
     }
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#3(ctime): " << r_time.count() * 1e-6 << " msec\n";
+    head_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif
     log("send Zn all");
     net.send_all(encode(zn));
 
@@ -129,6 +203,12 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
         Zn.push_back(decode<std::vector<Bn>>(zi_packet.get()));
     }
     log("end");
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#3(ctime): " << r_time.count() * 1e-6 << " msec\n";
+    head_runtime << elapsed_time.str();
+#endif
 
     std::vector<std::string> _Mn;
     for(auto [i, wi] : wn | views::enumerate) {
@@ -137,6 +217,10 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
         }).to_string());
     }
     log("_Mn:{}, finish system"_format(_Mn));
+
+#if (true == __profile_runtime)
+    head_runtime.close();
+#endif
 }
 
 void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& message) {
@@ -148,12 +232,29 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         logger->info("[{}]:{}\n",net.port(), fmt);
         logger->flush();
     };
+#if (true == __profile_runtime)
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::nanoseconds;
+
+    std::ofstream tail_runtime;
+    std::stringstream elapsed_time;
+
+    std::string f_name = std::string("cvh_")+net.port()+std::string("_runtime.txt");
+    tail_runtime.open(f_name, std::ofstream::out);
+#endif
+
 
     while(net.is_configure()) {}
     log("== network setting end ==\n");
     log("info: head:{}, next:{}, port:{}, prev:{}\n"_format(net.head(), net.next(), net.port(), net.prev()));
     std::string Mi = message; // Node의 메세지
 
+
+#if (true == __profile_runtime)
+    auto s_time = high_resolution_clock::now();
+#endif
     eig::public_key pk;
     eig::secret_key sk;
 
@@ -167,7 +268,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     auto xi = eig::random_r(q);
     sk = eig::secret_key(pk, xi);
     yi = g.exp(xi, p);
-    log("spead yi");
+    log("broadcast yi");
     net.send_all(encode(yi));
 
     Y = yi;
@@ -178,19 +279,44 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         Y.mul_inplace(yn, p);
     }
     log("end");
+#if (true == __profile_runtime)
+    auto e_time = high_resolution_clock::now();
+    auto r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "KG: " << r_time.count() * 1e-6 << " msec\n";
+    tail_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif    
 
     std::vector<eig::cipher> Cn;
     std::set<eig::cipher> _Cn;
     eig::cipher Ci = pk.encrypt(Mi);
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#1(ctime): " << r_time.count() * 1e-6 << " msec\n";
+    tail_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif    
     log("send Cn head");
     net.send_to(encode(Ci), net.head());
 
     log("receive _Cn prev");
     
-    auto Cn_packet = net.receive_from(net.prev()); Cn_packet.wait();
+    auto Cn_packet = net.receive_from(net.prev()); 
+    Cn_packet.wait();
     Cn_packet.wait();
     log("end");
     Cn = decode<std::vector<eig::cipher>>(Cn_packet.get());
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#1(ntime): " << r_time.count() * 1e-6 << " msec\n";
+    tail_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif    
 
     for(auto& [ui, vi] : Cn) {
         auto ri = eig::random_r(q);
@@ -198,6 +324,14 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         auto _vi = vi.mul(Y.exp(ri,p),p);
         _Cn.insert({_ui, _vi});
     }
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#2(ctime): " << r_time.count() * 1e-6 << " msec\n";
+    tail_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif    
     log("send _Cn next");
     net.send_to(encode(_Cn | to_vector), net.next());
 
@@ -205,6 +339,14 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     auto _Cn_packet = net.receive_from(net.head()); _Cn_packet.wait();
     log("end");
     Cn = decode<std::vector<eig::cipher>>(_Cn_packet.get());
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#2(ntime): " << r_time.count() * 1e-6 << " msec\n";
+    tail_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif    
 
     std::vector<Bn> zn;
     std::vector<Bn> wn;
@@ -213,6 +355,14 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         zn.push_back(zi);
         wn.push_back(vi.mul(zi, p));
     }
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#3(ctime): " << r_time.count() * 1e-6 << " msec\n";
+    tail_runtime << elapsed_time.str();
+
+    s_time = high_resolution_clock::now();
+#endif    
     log("send Zn all");
     net.send_all(encode(zn));
 
@@ -225,6 +375,12 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
 
     fmt::print("[{}]: end\n",net.port());
     log("end");
+#if (true == __profile_runtime)
+    e_time = high_resolution_clock::now();
+    r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "Step#3(ntime): " << r_time.count() * 1e-6 << " msec\n";
+    tail_runtime << elapsed_time.str();
+#endif    
 
     std::vector<std::string> _Mn;
     for(auto [i, wi] : wn | views::enumerate) {
@@ -233,6 +389,10 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         }).to_string());
     }
     log("_Mn:{}, finish system"_format(_Mn));
+
+#if (true == __profile_runtime)
+    tail_runtime.close();
+#endif
 }
 
 void start(const std::string& server_port, const std::string& head_port, const std::string& message) {
