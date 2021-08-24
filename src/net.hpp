@@ -58,7 +58,7 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
     std::ofstream head_runtime;
     std::stringstream elapsed_time;
 
-    std::string f_name = std::string("cvh_hruntime.txt");
+    std::string f_name = std::string("cvh_head_runtime.txt");
     head_runtime.open(f_name, std::ofstream::out);
 #endif
 

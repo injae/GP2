@@ -18,7 +18,12 @@ using namespace ssl;
 using namespace simnet::ring;
 using namespace ranges;
 
-#define __debug
+#define __profile_runtime       true
+#if (true == __profile_runtime)
+    #include <chrono>
+    #include <fstream>
+    #include <sstream>
+#endif
 
 struct cipher {
     DERIVE_SERDE(cipher,(&Self::s, "s")(&Self::t, "t"))
@@ -115,11 +120,32 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         logger->flush();
     };
 
+#if (true == __profile_runtime)
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::nanoseconds;
+
+    std::ofstream head_runtime, tail_runtime;
+    std::stringstream elapsed_time;
+
+    std::string f_name = std::string("our_")+net.port()+std::string("_runtime.txt");
+    if(net.head() == net.port()) {
+        head_runtime.open(f_name, std::ofstream::out);
+    }
+    else {
+        tail_runtime.open(f_name, std::ofstream::out);
+    }
+#endif
+
     Bn Wi(message);
 
     log("== network setting end ==\n");
     log(fmt::format("info: head:{}, next:{}, port:{}, prev:{}\n",net.head(), net.next(), net.port(), net.prev()));
 
+#if (true == __profile_runtime)
+    auto s_time = high_resolution_clock::now();
+#endif
     eig::secret_key sk;
     eig::public_key pk;
     if(net.head() == net.port()) {
@@ -153,6 +179,19 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         auto yn = decode<Bn>(wait_get(yn_i));
         Y = Y.mul(yn, p);
     }
+#if (true == __profile_runtime)
+    auto e_time = high_resolution_clock::now();
+    auto r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
+    elapsed_time << "KG: " << r_time.count() * 1e-6 << " msec\n";
+    if (net.head() == net.port()) {
+        head_runtime << elapsed_time.str();
+    }
+    else {
+        tail_runtime << elapsed_time.str();
+    }
+
+    s_time = high_resolution_clock::now();
+#endif
 
     log("#Step 2");
     assert(Wi.bit_size() <= msg_len);   //! |Wi| <= 1024 - 160 = 864
@@ -267,6 +306,14 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     }
     log(fmt::format("message: {}\n", Bn(al).to_string()));
 
+#if (true == __profile_runtime)
+    if (net.head() == net.port()) {
+        head_runtime.close();
+    }
+    else {
+        tail_runtime.close();
+    }
+#endif
     log("Finish");
 }
 
