@@ -251,7 +251,7 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         proto.value->push_back(datas[i]);
     }
 
-    for (auto &key : keys) { net.send_to(encode(send_map[key]), key); } // brodcast
+    for (auto &key : keys) { net.send_to(encode(send_map[key]), key); } // broadcast
     log("receive random node");
     std::vector<cipher> shuffle_set;
     shuffle_set.push_back(datas[0]);
