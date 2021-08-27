@@ -6,7 +6,7 @@
 #include "hm_crypt/bn.hpp"
 #include <functional>
 
-#define __debug
+#define _debug
 
 namespace hmc::util {
     using namespace ssl;
