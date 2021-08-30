@@ -207,7 +207,7 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
 #ifdef __profile_runtime
     e_time = high_resolution_clock::now();
     r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
-    elapsed_time << "Step#3(ctime): " << r_time.count() * 1e-6 << " msec\n";
+    elapsed_time << "Step#3(ntime): " << r_time.count() * 1e-6 << " msec\n";
     head_runtime << elapsed_time.str();
 #endif
 
@@ -233,7 +233,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         logger->info("[{}]:{}\n",net.port(), fmt);
         logger->flush();
     };
-#ifdef __profile_runtime_node
+#ifdef __profile_runtime
     using std::chrono::high_resolution_clock;
     using std::chrono::duration_cast;
     using std::chrono::duration;
@@ -253,7 +253,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     std::string Mi = message; // Node의 메세지
 
 
-#ifdef __profile_runtime_node
+#ifdef __profile_runtime
     auto s_time = high_resolution_clock::now();
 #endif
     eig::public_key pk;
@@ -280,7 +280,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         Y.mul_inplace(yn, p);
     }
     log("end");
-#ifdef __profile_runtime_node
+#ifdef __profile_runtime
     auto e_time = high_resolution_clock::now();
     auto r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
     elapsed_time << "KG: " << r_time.count() * 1e-6 << " msec\n";
@@ -292,7 +292,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     std::vector<eig::cipher> Cn;
     std::set<eig::cipher> _Cn;
     eig::cipher Ci = pk.encrypt(Mi);
-#ifdef __profile_runtime_node
+#ifdef __profile_runtime
     e_time = high_resolution_clock::now();
     r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
     elapsed_time << "Step#1(ctime): " << r_time.count() * 1e-6 << " msec\n";
@@ -310,7 +310,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     Cn_packet.wait();
     log("end");
     Cn = decode<std::vector<eig::cipher>>(Cn_packet.get());
-#ifdef __profile_runtime_node
+#ifdef __profile_runtime
     e_time = high_resolution_clock::now();
     r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
     elapsed_time << "Step#1(ntime): " << r_time.count() * 1e-6 << " msec\n";
@@ -325,7 +325,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         auto _vi = vi.mul(Y.exp(ri,p),p);
         _Cn.insert({_ui, _vi});
     }
-#ifdef __profile_runtime_node
+#ifdef __profile_runtime
     e_time = high_resolution_clock::now();
     r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
     elapsed_time << "Step#2(ctime): " << r_time.count() * 1e-6 << " msec\n";
@@ -340,7 +340,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     auto _Cn_packet = net.receive_from(net.head()); _Cn_packet.wait();
     log("end");
     Cn = decode<std::vector<eig::cipher>>(_Cn_packet.get());
-#ifdef __profile_runtime_node
+#ifdef __profile_runtime
     e_time = high_resolution_clock::now();
     r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
     elapsed_time << "Step#2(ntime): " << r_time.count() * 1e-6 << " msec\n";
@@ -356,7 +356,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         zn.push_back(zi);
         wn.push_back(vi.mul(zi, p));
     }
-#ifdef __profile_runtime_node
+#ifdef __profile_runtime
     e_time = high_resolution_clock::now();
     r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
     elapsed_time << "Step#3(ctime): " << r_time.count() * 1e-6 << " msec\n";
@@ -374,9 +374,9 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
         Zn.push_back(decode<std::vector<Bn>>(zi_packet.get()));
     }
 
-    fmt::print("[{}]: end\n",net.port());
+    // fmt::print("[{}]: end\n",net.port());
     log("end");
-#ifdef __profile_runtime_node
+#ifdef __profile_runtime
     e_time = high_resolution_clock::now();
     r_time = std::chrono::duration_cast<std::chrono::nanoseconds>(e_time - s_time);
     elapsed_time << "Step#3(ntime): " << r_time.count() * 1e-6 << " msec\n";
@@ -391,7 +391,7 @@ void node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     }
     log("_Mn:{}, finish system"_format(_Mn));
 
-#ifdef __profile_runtime_node
+#ifdef __profile_runtime
     tail_runtime.close();
 #endif
 }
