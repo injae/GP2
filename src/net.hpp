@@ -11,6 +11,7 @@
 #include <serdepp/adaptor/rapidjson.hpp>
 
 #include <fmt/chrono.h>
+#include <thread>
 
 #include <set>
 
@@ -163,6 +164,8 @@ void head_node(Node& net, std::shared_ptr<spdlog::logger> logger, const std::str
 #endif
     log("send _Cn next");
     net.send_to(encode(_Cn | to_vector), net.next());
+
+    // std::this_thread::sleep_for (std::chrono::seconds(1));
 
     auto Cn_packet = net.receive_from(net.prev()); 
     Cn_packet.wait();
