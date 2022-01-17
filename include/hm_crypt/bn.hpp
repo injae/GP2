@@ -113,8 +113,7 @@ namespace serde {
             data.from_hex(temp.c_str());
         }
         inline static auto into(serde_ctx& ctx, const Bn& data, std::string_view key) {
-            std::string buf = data.to_hex();
-            serde_adaptor<typename serde_ctx::Adaptor, std::string>::into(ctx.adaptor, key, buf);
+            serde_adaptor<typename serde_ctx::Adaptor, std::string>::into(ctx.adaptor, key, data.to_hex());
         }
     };
 }

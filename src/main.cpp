@@ -11,6 +11,8 @@ using namespace hmc;
 using namespace ssl;
 using namespace ranges;
 
+using namespace fmt::literals;
+
 struct EIG {
     inline static eig::public_key pk;
     eig::secret_key sk;

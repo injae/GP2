@@ -25,6 +25,8 @@ using namespace ranges;
     #include <sstream>
 #endif
 
+using namespace fmt::literals;
+
 struct cipher {
     DERIVE_SERDE(cipher,(&Self::s, "s")(&Self::t, "t"))
     Bn s;
@@ -60,7 +62,9 @@ std::string encode(const T& data) {
 //template<typename T>
 //std::string encode(const T& data) {
 //    using namespace rapidjson;
-//    auto doc = serde::serialize<rapidjson::Document>(data);
+//    rapidjson::Document doc;
+//    doc.SetObject();
+//    serde::serialize_to(data, doc);
 //    StringBuffer buffer;
 //    Writer<StringBuffer> writer(buffer);
 //    doc.Accept(writer);
@@ -187,7 +191,9 @@ void work(Node& net, std::shared_ptr<spdlog::logger> logger, const std::string& 
     assert(Wi.bit_size() <= msg_len);   //! |Wi| <= 1024 - 160 = 864
 
     auto n = net.size()+1;
+    //auto l = static_cast<size_t>(n); if(l < 3) l = 3;
     auto l = static_cast<size_t>(std::log(n)); if(l < 3) l = 3;
+    //auto l = 3;
     log("l = {} = log{}"_format(l, n));
 
     log("Gen A");

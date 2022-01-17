@@ -9,6 +9,8 @@
 #include <spdlog/sinks/basic_file_sink.h>
 
 #include <serdepp/adaptor/rapidjson.hpp>
+#include <serdepp/adaptor/nlohmann_json.hpp>
+#include <serdepp/adaptor/fmt.hpp>
 
 #include <fmt/chrono.h>
 #include <thread>
@@ -28,6 +30,8 @@ using namespace simnet::ring;
 using namespace hmc;
 using namespace ssl;
 using namespace ranges;
+
+using namespace fmt::literals;
 
 template<typename T>
 T decode(const std::string& data) {
