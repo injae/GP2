@@ -36,7 +36,7 @@
 #    member=["libs"]
 
 [dependencies]
-    OpenSSL={version="git", custom=true}
+    OpenSSL={version="unknown", custom=true}
     range-v3="0.11.0"
     spdlog="1.9.2"
     RapidJSON="1.1.1"
