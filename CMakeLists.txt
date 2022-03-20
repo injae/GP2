@@ -16,7 +16,7 @@ find_cppkg(RapidJSON 1.1.1  MODULE rapidjson TYPE lib)
 find_cppkg(spdlog 1.9.2  MODULE spdlog::spdlog TYPE lib)
 find_cppkg(nlohmann_json 3.9.1  MODULE nlohmann_json::nlohmann_json TYPE lib)
 find_cppkg(range-v3 0.11.0  MODULE range-v3::range-v3 TYPE lib)
-find_cppkg(OpenSSL latest  MODULE OpenSSL::SSL OpenSSL::Crypto COMPONENTS SSL Crypto TYPE lib)
+find_cppkg(OpenSSL latest MODULE OpenSSL::SSL OpenSSL::Crypto COMPONENTS SSL Crypto TYPE lib)
 
 
 cppm_target_define(hm_crypt STATIC
